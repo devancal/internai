@@ -14,7 +14,7 @@ const gradSuggestions=[];for(let y=new Date().getFullYear();y<=new Date().getFul
 function options(list){return list.map(v=>`<option value="${esc(v)}"></option>`).join('')}
 let state=load();
 let jobsData=[...seedJobs],jobsSource='fallback',jobsLoaded=false,jobsLoading=false;
-let jobFilters={query:'',location:'',mode:'all',saved:false};
+let jobFilters={query:'',location:'',mode:'all',saved:false,semester:'Summer'};
 function load(){try{const saved=JSON.parse(localStorage.getItem('internai-demo')||'{}');return {...structuredClone(defaultState),...saved,profile:{...structuredClone(defaultState.profile),...(saved.profile||{})}}}catch{return structuredClone(defaultState)}}
 function persist(){localStorage.setItem('internai-demo',JSON.stringify(state))}
 function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
