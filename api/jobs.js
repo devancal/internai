@@ -10,7 +10,10 @@ const SOURCES=[
   {provider:'greenhouse',site:'freeformfuturecorp',company:'Freeform'},
   {provider:'greenhouse',site:'kairospower',company:'Kairos Power'},
   {provider:'greenhouse',site:'graviticsinc',company:'Gravitics'},
-  {provider:'greenhouse',site:'amca',company:'Amca'}
+  {provider:'greenhouse',site:'amca',company:'Amca'},
+  {provider:'greenhouse',site:'spacex',company:'SpaceX'},
+  {provider:'greenhouse',site:'vardaspace',company:'Varda Space Industries'},
+  {provider:'greenhouse',site:'awetomaton',company:'Awetomaton'}
 ];
 
 const SKILLS=[
@@ -61,9 +64,12 @@ function seasonFromText(value=''){
 }
 function titleHas(text,word){return text.includes(word)}
 function inferMode(raw='',location='',content=''){
-  const text=`${raw} ${location} ${content}`.toLowerCase();
-  if(/\bremote\b/.test(text))return 'Remote';
-  if(/\bhybrid\b/.test(text))return 'Hybrid';
+  const primary=`${raw} ${location}`.toLowerCase();
+  if(/\bremote\b/.test(primary))return 'Remote';
+  if(/\bhybrid\b/.test(primary))return 'Hybrid';
+  const text=String(content).toLowerCase();
+  if(/(?:work|position|role|internship) (?:is |will be )?(?:fully )?remote\b|remote (?:work|position|role|internship)\b/.test(text))return 'Remote';
+  if(/(?:work|position|role|internship) (?:is |will be )?hybrid\b|hybrid (?:work|position|role|internship)\b/.test(text))return 'Hybrid';
   return 'On-site';
 }
 function normalizeCommon({id,company,title,location,mode,season,full,desc,source,applyUrl,provider,postedAt}){
@@ -76,7 +82,7 @@ function normalizeLever(job,source){
   const lists=Array.isArray(job.lists)?job.lists.map(x=>`${x.text||''} ${stripHtml(x.content||'')}`).join(' '):'';
   const full=`${job.text||''} ${text} ${lists}`;
   const location=locationFromLever(job);
-  return normalizeCommon({id:`lever-${source.site}-${job.id}`,company:source.company,title:job.text||'Engineering Internship',location,mode:inferMode(job.workplaceType||job.categories?.workplaceType||'',location,full),season:seasonFromText(job.text||''),full,desc:text||stripHtml(lists),source:'Live · employer Lever board',applyUrl:job.hostedUrl||job.applyUrl||'',provider:'Lever',postedAt:job.createdAt||null});
+  return normalizeCommon({id:`lever-${source.site}-${job.id}`,company:source.company,title:job.text||'Engineering Internship',location,mode:inferMode(job.workplaceType||job.categories?.workplaceType||'',location,full),season:seasonFromText(full),full,desc:text||stripHtml(lists),source:'Live · employer Lever board',applyUrl:job.hostedUrl||job.applyUrl||'',provider:'Lever',postedAt:job.createdAt||null});
 }
 async function fetchLever(source){
   const controller=new AbortController();
@@ -95,7 +101,7 @@ function normalizeGreenhouse(job,source){
   const dept=Array.isArray(job.departments)?job.departments.map(x=>x.name||'').join(' '):'';
   const office=Array.isArray(job.offices)?job.offices.map(x=>x.name||'').join(' '):'';
   const full=`${title} ${dept} ${office} ${content}`;
-  return normalizeCommon({id:`greenhouse-${source.site}-${job.id}`,company:source.company,title,location,mode:inferMode('',location,content),season:seasonFromText(title),full,desc:content,source:'Live · employer Greenhouse board',applyUrl:job.absolute_url||'',provider:'Greenhouse',postedAt:job.updated_at?Date.parse(job.updated_at):null});
+  return normalizeCommon({id:`greenhouse-${source.site}-${job.id}`,company:source.company,title,location,mode:inferMode('',location,content),season:seasonFromText(full),full,desc:content,source:'Live · employer Greenhouse board',applyUrl:job.absolute_url||'',provider:'Greenhouse',postedAt:job.updated_at?Date.parse(job.updated_at):null});
 }
 async function fetchGreenhouse(source){
   const controller=new AbortController();
