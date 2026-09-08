@@ -1,18 +1,20 @@
 const SOURCES=[
   {provider:'lever',site:'foth',company:'Foth'},
   {provider:'lever',site:'hermeus',company:'Hermeus'},
-  {provider:'lever',site:'nexuse-group',company:'Nexus Engineering Group'}
+  {provider:'lever',site:'nexuse-group',company:'Nexus Engineering Group'},
+  {provider:'lever',site:'shieldai',company:'Shield AI'},
+  {provider:'lever',site:'CesiumAstro',company:'CesiumAstro'}
 ];
 
 const SKILLS=[
-  ['SolidWorks',/solid\s?works/i],['Onshape',/onshape/i],['CAD',/\bCAD\b|computer[- ]aided design/i],
+  ['SolidWorks',/solid\s?works/i],['Onshape',/onshape/i],['CAD',/\bCAD\b|computer[- ]aided design|autocad|inventor|solid\s?edge/i],
   ['Python',/\bpython\b/i],['JavaScript',/javascript/i],['Excel',/\bexcel\b|microsoft excel/i],
-  ['Mechanical Design',/mechanical design|machine design/i],['Mechanical Systems',/mechanical systems?/i],
-  ['Thermodynamics',/thermodynamics?/i],['Data Analysis',/data analysis|analy[sz]e data/i],
-  ['Process Optimization',/process optimization|process improvement/i],['Project Management',/project management/i],
-  ['Team Collaboration',/cross[- ]functional|collaborat/i],['Prototyping',/prototyp/i],['GD&T',/GD&T|geometric dimension/i],
-  ['Systems Engineering',/systems engineering/i],['Testing',/\btest(?:ing)?\b|verification|validation/i],
-  ['Manufacturing',/manufactur/i],['Technical Writing',/technical (?:documentation|writing)/i],
+  ['Mechanical Design',/mechanical design|machine design|component design/i],['Mechanical Systems',/mechanical systems?|mechanical assembl/i],
+  ['Thermodynamics',/thermodynamics?|heat transfer/i],['Data Analysis',/data analysis|analy[sz]e data/i],
+  ['Process Optimization',/process optimization|process improvement|continuous improvement/i],['Project Management',/project management/i],
+  ['Team Collaboration',/cross[- ]functional|collaborat|multidisciplinary/i],['Prototyping',/prototyp|rapid iteration/i],['GD&T',/GD&T|geometric dimension/i],
+  ['Systems Engineering',/systems engineering|system integration/i],['Testing',/\btest(?:ing)?\b|verification|validation|test plan/i],
+  ['Manufacturing',/manufactur|production line/i],['Technical Writing',/technical (?:documentation|writing)|engineering documentation/i],
   ['Requirements',/requirements? (?:development|management|analysis)|system requirements?/i],['Lean',/\blean\b|six sigma/i]
 ];
 
@@ -21,7 +23,7 @@ function stripHtml(value=''){
 }
 function skillsFrom(text=''){
   const found=SKILLS.filter(([,re])=>re.test(text)).map(([name])=>name);
-  return found.length?found.slice(0,8):['Engineering'];
+  return found.length?found.slice(0,10):['Engineering'];
 }
 function isInternship(job){
   const title=String(job.text||'');
@@ -29,9 +31,17 @@ function isInternship(job){
   const team=String(job.categories?.team||'');
   const blob=`${title} ${commitment} ${team}`.toLowerCase();
   const intern=/intern|co-?op|seasonal/.test(blob);
-  const engineering=/engineer|mechanical|manufacturing|structures?|propulsion|systems?|test|controls?|process|piping|electrical|design|supply chain/.test(blob);
-  const currentTarget=/2027/.test(title)||!/20\d{2}/.test(title);
-  return intern&&engineering&&currentTarget;
+  const engineering=/engineer|mechanical|manufacturing|structures?|propulsion|systems?|test|controls?|process|piping|electrical|design|supply chain|avionics|flight software|gnc|automation/.test(blob);
+  const wrongYear=/202[0-6]|202[8-9]/.test(title);
+  return intern&&engineering&&!wrongYear;
+}
+function seasonFrom(job){
+  const title=String(job.text||'').toLowerCase();
+  const seasons=[];
+  if(title.includes('spring'))seasons.push('Spring');
+  if(title.includes('summer'))seasons.push('Summer');
+  if(title.includes('fall')||title.includes('autumn'))seasons.push('Fall');
+  return seasons.length?seasons:['Unspecified'];
 }
 function modeFrom(job){
   const raw=String(job.workplaceType||job.categories?.workplaceType||'').toLowerCase();
@@ -44,13 +54,14 @@ function normalizeLever(job,source){
   const text=stripHtml(job.descriptionPlain||job.description||'');
   const lists=Array.isArray(job.lists)?job.lists.map(x=>`${x.text||''} ${stripHtml(x.content||'')}`).join(' '):'';
   const full=`${job.text||''} ${text} ${lists}`;
-  const desc=(text||stripHtml(lists)||'See the employer listing for full role details.').slice(0,900);
+  const desc=(text||stripHtml(lists)||'See the employer listing for full role details.').slice(0,1100);
   return {
     id:`lever-${source.site}-${job.id}`,
     company:source.company,
     title:job.text||'Engineering Internship',
     location:locationFrom(job),
     mode:modeFrom(job),
+    season:seasonFrom(job),
     skills:skillsFrom(full),
     preferred:[],
     deadline:'Not listed',
@@ -77,7 +88,7 @@ module.exports=async function handler(req,res){
   if(req.method!=='GET'){res.setHeader('Allow','GET');return res.status(405).json({error:'Method not allowed'});}
   const settled=await Promise.allSettled(SOURCES.map(fetchLever));
   const jobs=settled.flatMap(x=>x.status==='fulfilled'?x.value:[]);
-  const unique=[...new Map(jobs.map(j=>[j.id,j])).values()].sort((a,b)=>(b.postedAt||0)-(a.postedAt||0));
-  res.setHeader('Cache-Control','s-maxage=900, stale-while-revalidate=3600');
+  const unique=[...new Map(jobs.map(j=>[j.applyUrl||j.id,j])).values()].sort((a,b)=>(b.postedAt||0)-(a.postedAt||0));
+  res.setHeader('Cache-Control','s-maxage=600, stale-while-revalidate=1800');
   return res.status(200).json({jobs:unique,count:unique.length,source:'public-employer-boards',providers:['Lever'],employers:SOURCES.map(s=>s.company),updatedAt:new Date().toISOString(),partial:settled.some(x=>x.status==='rejected')});
 };
