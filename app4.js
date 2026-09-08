@@ -1,4 +1,16 @@
 function toggleKitMaterial(id){document.getElementById(id)?.classList.toggle('open')}
+function setKitMaterialOpen(id,open){const el=document.getElementById(id);if(el)el.classList.toggle('open',!!open)}
+function selectKitChoice(appId,type,value,detailId){
+  const a=state.apps.find(x=>x.id===appId);if(!a)return;
+  a.kitChoices={...(a.kitChoices||{}),[type]:value};
+  persist();
+  const group=document.querySelector(`[data-kit-choice-group="${type}"]`);
+  if(group){group.querySelectorAll('[data-kit-choice]').forEach(btn=>{const selected=btn.getAttribute('data-kit-choice')===value;btn.classList.toggle('dark',selected);btn.classList.toggle('outline',!selected);btn.setAttribute('aria-pressed',selected?'true':'false');const label=btn.getAttribute('data-label')||btn.textContent.replace(/^✓\s*/, '');btn.setAttribute('data-label',label);btn.textContent=(selected?'✓ ':'')+label;});}
+  const open=(type==='resume'&&value==='tailored')||(type==='cover'&&value==='generate')||(type==='answers'&&value==='prepare');
+  if(detailId)setKitMaterialOpen(detailId,open);
+  const messages={tailored:'Tailored resume selected',original:'Original resume selected',generate:'Cover letter selected',skipCover:'Cover letter skipped',prepare:'Application answers selected',skipAnswers:'Application answers skipped'};
+  toast(messages[value]||'Choice saved');
+}
 function toggleKitEditor(previewId,inputId){
   const preview=document.getElementById(previewId),input=document.getElementById(inputId);if(!preview||!input)return;
   if(input.style.display==='none'){input.style.display='block';preview.style.display='none';input.focus()}
