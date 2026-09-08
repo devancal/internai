@@ -3,33 +3,69 @@ function refreshProfileCompletion(){const el=document.getElementById('profileCom
 function profileFieldDefault(){return (state.profile.major||'').trim()}
 function profileLocationDefault(){return (state.profile.location||'').trim()}
 function profileWorkPreferenceLabel(){const v=state.profile.workPreference;return ({'close-home':'Close to home','remote':'Remote','hybrid':'Hybrid preferred','relocate':'Open to relocate','doesnt-matter':'Doesn’t matter'})[v]||'No work preference set'}
-function disciplineFitsProfile(job){
-  if(jobFilters.query&&jobFilters.query.trim())return true;
+function profileDiscipline(job){
   const major=(state.profile.major||'').toLowerCase();
-  if(!major)return true;
-  const title=(job.title||'').toLowerCase(),skills=(job.skills||[]).join(' ').toLowerCase(),desc=(job.desc||'').toLowerCase();
-  const blob=`${title} ${skills} ${desc}`;
+  if(!major)return 1;
+  const title=(job.title||'').toLowerCase();
+  const desc=(job.desc||'').toLowerCase();
+  const skills=(job.skills||[]).join(' ').toLowerCase();
+  const degrees=(job.degreeFields||[]).map(x=>x.toLowerCase());
+  const blob=`${title} ${desc} ${skills}`;
+  const hasDegree=x=>degrees.includes(x);
   if(major.includes('mechanical')){
-    const unrelated=/chemical engineer|chemical engineering|software engineer|software engineering|electrical engineer|electrical engineering|civil engineer|civil engineering|biomedical engineer|biomedical engineering/.test(title);
-    const mechanical=/mechanical|product design|machine design|manufactur|cad|solidworks|onshape|thermal|thermodynamic|propulsion|structures?|test engineer|hardware|mechatronic|automation|robotic|process engineer|mechanical systems?/.test(blob);
-    return mechanical&&!unrelated;
+    if(hasDegree('mechanical'))return 1;
+    if(hasDegree('manufacturing')||hasDegree('aerospace'))return .9;
+    if(degrees.length&&degrees.some(x=>['chemical','civil','electrical','software','computer','biomedical'].includes(x)))return .05;
+    if(/chemical engineer|chemical process|civil\/structural|civil engineer|electrical engineer|substation|instrumentation\s*&?\s*controls?|software engineer|flight software|supply chain/.test(title))return .05;
+    if(/mechanical|piping|product design|machine design|manufactur|cad|solidworks|onshape|thermal|thermodynamic|propulsion|structures\/mechanical|mechanical structures|test engineer|hardware|mechatronic|automation|robotic|mechanical process|packaging systems/.test(blob))return .9;
+    if(/structures?|process engineering|systems engineering|quality engineering/.test(title))return .58;
+    return .25;
   }
-  if(major.includes('aerospace'))return /aerospace|propulsion|structures?|flight|systems?|test|mechanical|avionics|gnc/.test(blob);
-  if(major.includes('electrical'))return /electrical|electronics|power|controls?|embedded|systems?|test|hardware/.test(blob)&&!/chemical engineer|civil engineer/.test(title);
-  if(major.includes('computer')||major.includes('software'))return /software|computer|embedded|controls?|python|javascript|systems?|firmware/.test(blob)&&!/chemical engineer|civil engineer/.test(title);
-  if(major.includes('chemical'))return /chemical|process|materials?|manufactur|quality/.test(blob);
-  if(major.includes('civil'))return /civil|structural|construction|transportation|geotechnical|water resources/.test(blob);
-  if(major.includes('industrial'))return /industrial|manufactur|process|operations|quality|supply chain|lean/.test(blob);
-  return true;
+  if(major.includes('aerospace')){
+    if(hasDegree('aerospace')||hasDegree('mechanical'))return 1;
+    if(degrees.length&&degrees.some(x=>['chemical','civil','biomedical'].includes(x)))return .1;
+    return /aerospace|propulsion|structures?|flight|systems?|test|mechanical|avionics|gnc/.test(blob)?.85:.3;
+  }
+  if(major.includes('electrical')){
+    if(hasDegree('electrical')||hasDegree('computer'))return 1;
+    if(degrees.length&&degrees.some(x=>['chemical','civil','mechanical'].includes(x))&&!hasDegree('electrical'))return .1;
+    return /electrical|electronics|power|controls?|embedded|systems?|test|hardware|avionics/.test(blob)?.85:.3;
+  }
+  if(major.includes('computer')||major.includes('software')){
+    if(hasDegree('computer')||hasDegree('software'))return 1;
+    return /software|computer|embedded|controls?|python|javascript|systems?|firmware|flight software/.test(blob)?.85:.25;
+  }
+  if(major.includes('chemical'))return hasDegree('chemical')?1:(/chemical|process|materials?|manufactur|quality/.test(blob)?.8:.25);
+  if(major.includes('civil'))return hasDegree('civil')?1:(/civil|structural|construction|transportation|geotechnical|water resources/.test(blob)?.8:.25);
+  if(major.includes('industrial'))return hasDegree('industrial')?1:(/industrial|manufactur|process|operations|quality|supply chain|lean/.test(blob)?.8:.3);
+  return 1;
 }
-function match(job){const p=state.profile;const s=new Set(p.skills.map(x=>x.toLowerCase()));const matched=job.skills.filter(x=>s.has(x.toLowerCase()));const skillPct=job.skills.length?matched.length/job.skills.length:0;const sameCity=!!(p.location&&job.location.toLowerCase().includes(p.location.toLowerCase().split(',')[0]));const major=(p.major||'').toLowerCase();const roleBlob=`${job.title} ${(job.skills||[]).join(' ')} ${job.desc||''}`.toLowerCase();let field=.55;if(major.includes('mechanical'))field=/mechanical|design|manufactur|test|product|cad|structures?|propulsion|thermal|process/.test(roleBlob)?1:.35;else if(major.includes('aerospace'))field=/aerospace|propulsion|structures?|flight|systems?|test|mechanical/.test(roleBlob)?1:.4;else if(major.includes('electrical'))field=/electrical|electronics|power|controls?|systems?|test/.test(roleBlob)?1:.4;else if(major.includes('computer')||major.includes('software'))field=/software|computer|embedded|controls?|python|javascript|systems?/.test(roleBlob)?1:.4;let loc=.65;switch(p.workPreference){case'remote':loc=job.mode==='Remote'?1:.2;break;case'close-home':loc=sameCity?1:(job.mode==='Remote'?.8:.25);break;case'hybrid':loc=job.mode==='Hybrid'?1:(job.mode==='Remote'?.65:.5);break;case'relocate':loc=job.mode==='Remote'?.75:1;break;default:loc=.75;}const base=p.skills.length?18:0;return Math.min(96,Math.round(base+skillPct*56+loc*11+field*11))}
+function disciplineFitsProfile(job){return !!(jobFilters.query&&jobFilters.query.trim())||profileDiscipline(job)>=.55}
+function match(job){
+  const p=state.profile;
+  const s=new Set(p.skills.map(x=>x.toLowerCase()));
+  const matched=(job.skills||[]).filter(x=>s.has(x.toLowerCase()));
+  const skillPct=(job.skills||[]).length?matched.length/job.skills.length:0;
+  const sameCity=!!(p.location&&job.location.toLowerCase().includes(p.location.toLowerCase().split(',')[0]));
+  let loc=.6;
+  switch(p.workPreference){
+    case'remote':loc=job.mode==='Remote'?1:.25;break;
+    case'close-home':loc=sameCity?1:(job.mode==='Remote'?.75:.3);break;
+    case'hybrid':loc=job.mode==='Hybrid'?1:(job.mode==='Remote'?.65:.55);break;
+    case'relocate':loc=job.mode==='Remote'?.75:1;break;
+    default:loc=.72;
+  }
+  const field=profileDiscipline(job);
+  const base=p.skills.length?12:0;
+  return Math.min(96,Math.max(8,Math.round(base+skillPct*44+loc*18+field*26)));
+}
 function dashboard(){const ranked=jobsData.filter(disciplineFitsProfile).map(j=>({...j,score:match(j)})).sort((a,b)=>b.score-a.score);const active=state.apps.filter(a=>a.status!=='Rejected'&&a.status!=='Offer').length;document.getElementById('page').innerHTML=`<div class="page-title"><div><h1>Overview</h1><p>Your internship search at a glance.</p></div><button class="btn dark" onclick="showPage('jobs')">Discover roles →</button></div><div class="grid3"><div class="metric"><span>Profile strength</span><b>${profileStrength()}%</b></div><div class="metric"><span>Saved roles</span><b>${state.saved.length}</b></div><div class="metric"><span>Active applications</span><b>${active}</b></div></div>${profileStrength()<60?`<div class="panel"><div class="notice warn"><b>Improve your match quality.</b> Add your actual skills, school, location, and resume facts so scores are based on evidence instead of guesses. <button class="btn outline small" style="margin-left:8px" onclick="showPage('profile')">Complete profile</button></div></div>`:''}<div class="panel"><div class="row" style="justify-content:space-between"><h3>Best current matches</h3><span class="meta">${jobsSource==='live'?'Live employer listings':'Loading live roles…'}</span></div><div class="jobs">${ranked.slice(0,3).map(jobHtml).join('')}</div></div>`}
 function jobHtml(j){
   const sc=j.score??match(j);
-  const matched=j.skills.filter(x=>state.profile.skills.some(s=>s.toLowerCase()===x.toLowerCase()));
+  const matched=(j.skills||[]).filter(x=>state.profile.skills.some(s=>s.toLowerCase()===x.toLowerCase()));
   return `<div class="job" onclick="openJob('${j.id}')" style="cursor:pointer">
     <div class="job-head"><div><h3>${esc(j.title)}</h3><div class="meta">${esc(j.company)} · ${esc(j.location)} · ${esc(j.mode)}</div></div><div class="score">${sc}%</div></div>
-    <div class="tags">${j.skills.slice(0,6).map(x=>`<span class="tag">${esc(x)}</span>`).join('')}${j.season&&j.season[0]!=='Unspecified'?j.season.map(x=>`<span class="tag">${esc(x)} 2027</span>`).join(''):''}${j.live?'<span class="tag">Live listing</span>':''}</div>
+    <div class="tags">${(j.skills||[]).slice(0,6).map(x=>`<span class="tag">${esc(x)}</span>`).join('')}${j.season&&j.season[0]!=='Unspecified'?j.season.map(x=>`<span class="tag">${esc(x)} 2027</span>`).join(''):''}${j.live?'<span class="tag">Live listing</span>':''}</div>
     <div class="why"><b>Why it fits:</b> ${matched.length?`Verified matches: ${matched.map(esc).join(', ')}.`:'No verified skill matches yet. Add real skills to improve this score.'}</div>
     <div class="job-actions"><button class="btn dark small" onclick="event.stopPropagation();openJob('${j.id}')">View match →</button><button class="btn outline small" onclick="event.stopPropagation();toggleSave('${j.id}')">${state.saved.includes(j.id)?'Saved ✓':'Save'}</button></div>
   </div>`;
@@ -42,7 +78,7 @@ function filteredJobs(){
     if(jobFilters.mode!=='all'&&j.mode!==jobFilters.mode)return false;
     if(jobFilters.semester!=='all'&&!(j.season||[]).includes(jobFilters.semester))return false;
     if(loc&&!j.location.toLowerCase().includes(loc))return false;
-    if(q&&!`${j.title} ${j.company} ${j.location} ${(j.skills||[]).join(' ')} ${j.desc||''}`.toLowerCase().includes(q))return false;
+    if(q&&!`${j.title} ${j.company} ${j.location} ${(j.skills||[]).join(' ')} ${j.desc||''} ${(j.degreeFields||[]).join(' ')}`.toLowerCase().includes(q))return false;
     if(!q&&!disciplineFitsProfile(j))return false;
     return true;
   });
@@ -57,7 +93,7 @@ function jobs(){
   const fieldValue=jobFilters.query||fieldDefault,locationValue=jobFilters.location||locationDefault;
   document.getElementById('page').innerHTML=`<div class="page-title"><div><h1>Discover</h1><p>Evidence-based internship matches ranked against your verified profile.</p></div><button class="btn outline small" onclick="loadLiveJobs(true);toast('Refreshing live listings')">Refresh listings</button></div>
   <div class="notice"><b>${jobsSource==='live'?'Live listings':'Job feed status'}:</b> ${esc(sourceText)} Match explanations use only profile facts you entered.</div>
-  <div class="panel" style="margin-top:16px"><div class="notice" style="margin-bottom:14px"><b>Using your profile by default:</b> ${fieldDefault?esc(fieldDefault):'Field not set'} · ${locationDefault?esc(locationDefault):'Location not set'} · ${esc(workDefault)}. Related roles are included, but clearly unrelated engineering disciplines are hidden unless you search for them.</div><div class="form-grid"><div class="field"><label>Field / role <span class="meta">(from profile)</span></label><input value="${esc(fieldValue)}" placeholder="Mechanical Engineering" onfocus="if(!jobFilters.query&&this.value===${JSON.stringify(fieldDefault)})this.select()" oninput="jobFilters.query=this.value" onkeydown="if(event.key==='Enter')jobs()"><div class="meta" style="margin-top:6px">Leave this on your profile field for personalized results, or type something else to broaden/change the search.</div></div><div class="field"><label>Location <span class="meta">(from profile)</span></label><input value="${esc(locationValue)}" placeholder="Cleveland, OH" onfocus="if(!jobFilters.location&&this.value===${JSON.stringify(locationDefault)})this.select()" oninput="jobFilters.location=this.value" onkeydown="if(event.key==='Enter')jobs()"><div class="meta" style="margin-top:6px">Your saved location and work preference are already part of the match score.</div></div><div class="field"><label>Internship term</label><select onchange="setJobFilter('semester',this.value)"><option value="all" ${jobFilters.semester==='all'?'selected':''}>Any semester</option><option value="Spring" ${jobFilters.semester==='Spring'?'selected':''}>Spring 2027</option><option value="Summer" ${jobFilters.semester==='Summer'?'selected':''}>Summer 2027</option><option value="Fall" ${jobFilters.semester==='Fall'?'selected':''}>Fall 2027</option></select></div><div class="field"><label>Work mode</label><select onchange="setJobFilter('mode',this.value)"><option value="all" ${jobFilters.mode==='all'?'selected':''}>Any</option><option ${jobFilters.mode==='On-site'?'selected':''}>On-site</option><option ${jobFilters.mode==='Hybrid'?'selected':''}>Hybrid</option><option ${jobFilters.mode==='Remote'?'selected':''}>Remote</option></select><div class="meta" style="margin-top:6px">Any shows every mode; your profile preference still helps rank them.</div></div><div class="field"><label>Saved</label><select onchange="setJobFilter('saved',this.value==='saved')"><option value="all" ${!jobFilters.saved?'selected':''}>All roles</option><option value="saved" ${jobFilters.saved?'selected':''}>Saved only</option></select></div></div><div class="row" style="margin-top:12px"><button class="btn dark small" onclick="jobs()">Apply overrides</button><button class="btn outline small" onclick="clearJobFilters()">Reset to profile</button><span class="meta">${ranked.length} result${ranked.length===1?'':'s'}</span></div></div>
+  <div class="panel" style="margin-top:16px"><div class="notice" style="margin-bottom:14px"><b>Using your profile by default:</b> ${fieldDefault?esc(fieldDefault):'Field not set'} · ${locationDefault?esc(locationDefault):'Location not set'} · ${esc(workDefault)}. Your default feed now favors roles that explicitly accept your discipline and hides clearly unrelated majors.</div><div class="form-grid"><div class="field"><label>Field / role <span class="meta">(from profile)</span></label><input value="${esc(fieldValue)}" placeholder="Mechanical Engineering" onfocus="if(!jobFilters.query&&this.value===${JSON.stringify(fieldDefault)})this.select()" oninput="jobFilters.query=this.value" onkeydown="if(event.key==='Enter')jobs()"><div class="meta" style="margin-top:6px">Leave this on your profile field for personalized results, or type something else to broaden/change the search.</div></div><div class="field"><label>Location <span class="meta">(from profile)</span></label><input value="${esc(locationValue)}" placeholder="Cleveland, OH" onfocus="if(!jobFilters.location&&this.value===${JSON.stringify(locationDefault)})this.select()" oninput="jobFilters.location=this.value" onkeydown="if(event.key==='Enter')jobs()"><div class="meta" style="margin-top:6px">Your saved location and work preference are already part of the match score.</div></div><div class="field"><label>Internship term</label><select onchange="setJobFilter('semester',this.value)"><option value="all" ${jobFilters.semester==='all'?'selected':''}>Any semester</option><option value="Spring" ${jobFilters.semester==='Spring'?'selected':''}>Spring 2027</option><option value="Summer" ${jobFilters.semester==='Summer'?'selected':''}>Summer 2027</option><option value="Fall" ${jobFilters.semester==='Fall'?'selected':''}>Fall 2027</option></select></div><div class="field"><label>Work mode</label><select onchange="setJobFilter('mode',this.value)"><option value="all" ${jobFilters.mode==='all'?'selected':''}>Any</option><option ${jobFilters.mode==='On-site'?'selected':''}>On-site</option><option ${jobFilters.mode==='Hybrid'?'selected':''}>Hybrid</option><option ${jobFilters.mode==='Remote'?'selected':''}>Remote</option></select><div class="meta" style="margin-top:6px">Any shows every mode; your profile preference still helps rank them.</div></div><div class="field"><label>Saved</label><select onchange="setJobFilter('saved',this.value==='saved')"><option value="all" ${!jobFilters.saved?'selected':''}>All roles</option><option value="saved" ${jobFilters.saved?'selected':''}>Saved only</option></select></div></div><div class="row" style="margin-top:12px"><button class="btn dark small" onclick="jobs()">Apply overrides</button><button class="btn outline small" onclick="clearJobFilters()">Reset to profile</button><span class="meta">${ranked.length} result${ranked.length===1?'':'s'}</span></div></div>
   <div class="jobs" style="margin-top:16px">${ranked.length?ranked.map(jobHtml).join(''):'<div class="panel empty">No roles match those filters.</div>'}</div>`;
 }
 function toggleSave(id){
@@ -67,8 +103,8 @@ function toggleSave(id){
 }
 function jobEvidence(j){
   const skills=state.profile.skills.map(x=>x.toLowerCase());
-  const matched=j.skills.filter(x=>skills.includes(x.toLowerCase()));
-  const missing=j.skills.filter(x=>!skills.includes(x.toLowerCase()));
+  const matched=(j.skills||[]).filter(x=>skills.includes(x.toLowerCase()));
+  const missing=(j.skills||[]).filter(x=>!skills.includes(x.toLowerCase()));
   const preferred=(j.preferred||[]).filter(x=>!skills.includes(x.toLowerCase()));
   return {matched,missing,preferred};
 }
