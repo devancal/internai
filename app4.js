@@ -16,13 +16,13 @@ function savePrep(id){
 }
 function readyToApply(id){savePrep(id);const a=state.apps.find(x=>x.id===id);a.status='Ready';persist();openApplyStep(id)}
 function openApplyStep(id){
-  const a=state.apps.find(x=>x.id===id),j=seedJobs.find(x=>x.id===a?.jobId);if(!a||!j)return;
+  const a=state.apps.find(x=>x.id===id),j=getJobById(a?.jobId);if(!a||!j)return;
   document.getElementById('page').innerHTML=`<div class="page-title"><div><button class="btn outline small" onclick="openPrep('${id}')">← Application Kit</button><h1 style="margin-top:12px">Ready to apply</h1><p>${esc(j.company)} · ${esc(j.title)}</p></div></div>
   <div class="flow-steps"><span class="flow-step">1 Match</span><span class="flow-step">2 Application Kit</span><span class="flow-step active">3 Apply</span><span class="flow-step">4 Track</span></div>
-  <div class="apply-box"><h3>Final submission stays with you.</h3><p style="color:var(--muted);line-height:1.7">In production, this button opens the employer's verified ATS or Handshake destination. This demo intentionally uses a placeholder instead of pretending these sample companies have real listings.</p>
-  <div class="row" style="margin-top:14px"><button class="btn dark" onclick="demoExternalApply('${id}')">Open application site ↗</button><button class="btn outline" onclick="confirmSubmitted('${id}')">I submitted it ✓</button></div></div>`;
+  <div class="apply-box"><h3>Final submission stays with you.</h3><p style="color:var(--muted);line-height:1.7">${j.live?'This role came from the employer’s public job board. InternAI opens the original application page in a new tab so you can review and submit it yourself.':'This fallback sample role does not have a real employer application attached.'}</p>
+  <div class="row" style="margin-top:14px"><button class="btn dark" onclick="openExternalApply('${id}')">Open application site ↗</button><button class="btn outline" onclick="confirmSubmitted('${id}')">I submitted it ✓</button></div></div>`;
 }
-function demoExternalApply(id){toast('Demo role: real employer URL will be connected with live job data');}
+function openExternalApply(id){const a=state.apps.find(x=>x.id===id),j=getJobById(a?.jobId);if(!j)return;if(j.live&&/^https:\/\//i.test(j.applyUrl||'')){window.open(j.applyUrl,'_blank','noopener,noreferrer');return}toast('No verified employer URL is attached to this fallback sample role')}
 function confirmSubmitted(id){
   const a=state.apps.find(x=>x.id===id);if(!a)return;a.status='Applied';a.submittedAt=new Date().toISOString().slice(0,10);persist();toast('Marked as applied');openApplication(id);
 }
