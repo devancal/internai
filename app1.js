@@ -17,7 +17,7 @@ let jobsData=[...seedJobs],jobsSource='fallback',jobsLoaded=false,jobsLoading=fa
 let jobFilters={query:'',location:'',mode:'all',saved:false};
 function load(){try{const saved=JSON.parse(localStorage.getItem('internai-demo')||'{}');return {...structuredClone(defaultState),...saved,profile:{...structuredClone(defaultState.profile),...(saved.profile||{})}}}catch{return structuredClone(defaultState)}}
 function persist(){localStorage.setItem('internai-demo',JSON.stringify(state))}
-function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]))}
+function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)}
 function getJobById(id){return jobsData.find(x=>x.id===id)||state.apps.find(a=>a.jobId===id)?.jobSnapshot||seedJobs.find(x=>x.id===id)}
 async function loadLiveJobs(force=false){
