@@ -6,24 +6,61 @@ function addSkill(){const el=document.getElementById('skillInput'),v=el.value.tr
 function removeSkill(i){state.profile.skills.splice(i,1);persist();refreshSkills()}
 const skillDictionary=['SolidWorks','Onshape','CAD','Python','JavaScript','Excel','Mechanical Design','Mechanical Systems','Thermodynamics','Data Analysis','Process Optimization','Project Management','Team Collaboration','Prototyping','GD&T','Systems Engineering'];
 async function parseResumeFile(file){if(!file)return;if(file.type!=='application/pdf'&&!file.name.toLowerCase().endsWith('.pdf')){toast('Please choose a PDF resume');return}const result=document.getElementById('resumeResult');result.innerHTML='<div class="notice">Reading PDF…</div>';try{if(!window.pdfjsLib)throw new Error('PDF reader failed to load.');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';const data=await file.arrayBuffer();const pdf=await pdfjsLib.getDocument({data}).promise;let txt='';for(let i=1;i<=pdf.numPages;i++){const page=await pdf.getPage(i);const content=await page.getTextContent();txt+=' '+content.items.map(x=>x.str||'').join(' ')}state.profile.resumeText=txt;state.profile.resumeFilename=file.name;persist();refreshSummaryAssist();renderResumeFacts(txt);const summaryInput=document.getElementById('psummary');if(summaryInput&&!summaryInput.value.trim())summaryInput.focus()}catch(err){result.innerHTML=`<div class="notice warn">Could not read this PDF. Make sure it contains selectable text rather than only scanned images. ${esc(err?.message||'')}</div>`}}
+function detectedResumeThemes(txt){
+  const lower=(txt||'').toLowerCase(),themes=[];
+  const add=(label,re)=>{if(re.test(lower)&&!themes.includes(label))themes.push(label)};
+  add('mechanical design and CAD modeling',/solidworks|onshape|\bcad\b|parametric|assembly|mechanical design|3d model/);
+  add('prototype development and fabrication',/prototype|fabricat|machin|manufactur|build|fixture|3d print|water pump/);
+  add('mechanical systems and motion',/mechanical systems|engine|piston|cam|gear|pump|drivetrain|powertrain|kinematic|motion/);
+  add('engineering analysis and testing',/data analysis|analysis|test|validation|verification|root[- ]cause|thermodynamic|simulation/);
+  add('process improvement',/process optimization|process improvement|lean|workflow|efficien|production process/);
+  add('programming and technical computing',/python|javascript|matlab|coding|programming|script/);
+  return themes;
+}
+function detectedResumeProjects(txt){
+  const lower=(txt||'').toLowerCase(),projects=[];
+  if(/v8|internal combustion|engine design|piston|camshaft/.test(lower))projects.push('engine and mechanical-assembly design');
+  if(/water pump|bucket|conveyor|gear system|fluid transport/.test(lower))projects.push('pump, gearing, and fabrication projects');
+  if(/formula buckeye|formula sae|fsae/.test(lower))projects.push('Formula SAE involvement');
+  if(/robot|robotics/.test(lower))projects.push('robotics work');
+  return [...new Set(projects)];
+}
+function detectedResumeOrganizations(txt){
+  const lower=(txt||'').toLowerCase(),orgs=[];
+  if(/formula buckeye|formula sae|fsae/.test(lower))orgs.push('Formula SAE');
+  if(/\basme\b|american society of mechanical engineers/.test(lower))orgs.push('ASME');
+  if(/sae international|\bsae\b/.test(lower)&&!orgs.includes('Formula SAE'))orgs.push('SAE');
+  if(/robotics club|robotics team/.test(lower))orgs.push('robotics organizations');
+  return [...new Set(orgs)];
+}
 function buildResumeSummary(txt,school,major,grad,skills){
   const lower=(txt||'').toLowerCase();
-  const hasEngineering=/engineering|engineer/.test(lower);
-  const hasProjects=/project|design|develop|build|fabricat|model/.test(lower);
-  const hasLeadership=/coach|lead|mentor|leadership/.test(lower);
-  const degree=major||(hasEngineering?'engineering':'');
+  const degree=major||(/mechanical engineering/.test(lower)?'Mechanical Engineering':(/engineering|engineer/.test(lower)?'Engineering':''));
+  const themes=detectedResumeThemes(txt),projects=detectedResumeProjects(txt),orgs=detectedResumeOrganizations(txt);
+  const hasLeadership=/coach|mentor|team lead|leadership|led |supervis|captain/.test(lower);
   let first='';
   if(degree&&school) first=`${degree} student at ${school}${grad?` with an expected graduation of ${grad}`:''}.`;
   else if(degree) first=`${degree} student${grad?` with an expected graduation of ${grad}`:''}.`;
-  else if(school) first=`Student at ${school}${grad?` with an expected graduation of ${grad}`:''}.`;
+  else if(school) first=`Engineering-focused student at ${school}${grad?` with an expected graduation of ${grad}`:''}.`;
   else first='Engineering-focused student with hands-on technical experience documented in the uploaded resume.';
-  const top=skills.slice(0,5);
-  let second=top.length?`Technical background includes ${top.join(', ')}.`:'';
+
+  const strongestThemes=themes.slice(0,3);
+  let second='';
+  if(strongestThemes.length>=2)second=`Hands-on experience includes ${strongestThemes.slice(0,-1).join(', ')}, and ${strongestThemes.at(-1)}.`;
+  else if(strongestThemes.length===1)second=`Hands-on experience includes ${strongestThemes[0]}.`;
+
+  const topSkills=skills.filter(Boolean).slice(0,5);
   let third='';
-  if(hasProjects&&hasLeadership) third='Brings project-based technical experience along with demonstrated leadership and collaboration.';
-  else if(hasProjects) third='Brings hands-on, project-based technical experience with a focus on practical problem solving and design.';
-  else if(hasLeadership) third='Brings demonstrated leadership, teamwork, and problem-solving experience.';
-  return [first,second,third].filter(Boolean).join(' ');
+  if(topSkills.length)third=`Technical toolkit includes ${topSkills.join(', ')}.`;
+
+  let fourth='';
+  if(projects.length&&orgs.length)fourth=`Project experience includes ${projects.slice(0,2).join(' and ')}, complemented by involvement in ${orgs.slice(0,2).join(' and ')}.`;
+  else if(projects.length)fourth=`Project experience includes ${projects.slice(0,2).join(' and ')}.`;
+  else if(orgs.length)fourth=`Active involvement in ${orgs.slice(0,2).join(' and ')} reinforces practical engineering and team-based experience.`;
+  else if(hasLeadership)fourth='Brings additional leadership, mentoring, and team-collaboration experience.';
+
+  const sentences=[first,second,third,fourth].filter(Boolean);
+  return sentences.slice(0,4).join(' ');
 }
 function getResumeSummaryCandidate(txt=state.profile.resumeText){
   if(!txt)return '';
