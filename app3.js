@@ -1,10 +1,11 @@
 function ensureApplication(j){
   let a=state.apps.find(x=>x.jobId===j.id);
-  if(!a){a={id:crypto.randomUUID(),jobId:j.id,company:j.company,title:j.title,status:'Preparing',date:new Date().toISOString().slice(0,10),notes:'',draft:'',resumeNotes:'',answers:'',submittedAt:''};state.apps.unshift(a);persist();}
+  if(!a){a={id:crypto.randomUUID(),jobId:j.id,jobSnapshot:j,company:j.company,title:j.title,status:'Preparing',date:new Date().toISOString().slice(0,10),notes:'',draft:'',resumeNotes:'',answers:'',submittedAt:''};state.apps.unshift(a);persist();}
+  else if(!a.jobSnapshot){a.jobSnapshot=j;persist()}
   return a;
 }
 function prepareJob(id){
-  const j=seedJobs.find(x=>x.id===id);if(!j)return;
+  const j=getJobById(id);if(!j)return;
   const a=ensureApplication(j);openPrep(a.id);
 }
 function tailoredResumeNotes(j){
@@ -21,7 +22,7 @@ function answerDraft(j){
 }
 function openPrep(appId){
   const a=state.apps.find(x=>x.id===appId); if(!a)return;
-  const j=seedJobs.find(x=>x.id===a.jobId);
+  const j=getJobById(a.jobId);
   if(!j){openApplication(appId);return}
   if(!a.draft)a.draft=coverDraft(a,j);
   if(!a.resumeNotes)a.resumeNotes=tailoredResumeNotes(j);
