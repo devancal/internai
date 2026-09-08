@@ -3,7 +3,14 @@ const SOURCES=[
   {provider:'lever',site:'hermeus',company:'Hermeus'},
   {provider:'lever',site:'nexuse-group',company:'Nexus Engineering Group'},
   {provider:'lever',site:'shieldai',company:'Shield AI'},
-  {provider:'lever',site:'CesiumAstro',company:'CesiumAstro'}
+  {provider:'lever',site:'CesiumAstro',company:'CesiumAstro'},
+  {provider:'greenhouse',site:'andurilindustries',company:'Anduril Industries'},
+  {provider:'greenhouse',site:'astranis',company:'Astranis'},
+  {provider:'greenhouse',site:'stokespacetechnologies',company:'Stoke Space'},
+  {provider:'greenhouse',site:'freeformfuturecorp',company:'Freeform'},
+  {provider:'greenhouse',site:'kairospower',company:'Kairos Power'},
+  {provider:'greenhouse',site:'graviticsinc',company:'Gravitics'},
+  {provider:'greenhouse',site:'amca',company:'Amca'}
 ];
 
 const SKILLS=[
@@ -18,6 +25,14 @@ const SKILLS=[
   ['Requirements',/requirements? (?:development|management|analysis)|system requirements?/i],['Lean',/\blean\b|six sigma/i]
 ];
 
+const DEGREE_FIELDS=[
+  ['Mechanical',/mechanical engineering/i],['Aerospace',/aerospace engineering|aeronautical engineering/i],
+  ['Manufacturing',/manufacturing engineering/i],['Industrial',/industrial engineering/i],['Systems',/systems engineering/i],
+  ['Electrical',/electrical engineering/i],['Computer',/computer engineering/i],['Software',/software engineering|computer science/i],
+  ['Chemical',/chemical engineering/i],['Civil',/civil engineering/i],['Biomedical',/biomedical engineering/i],
+  ['Materials',/materials (?:science|engineering)|materials science and engineering/i],['Physics',/\bphysics\b/i],['Mathematics',/\bmathematics\b|\bmath\b/i]
+];
+
 function stripHtml(value=''){
   return String(value).replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
 }
@@ -25,53 +40,43 @@ function skillsFrom(text=''){
   const found=SKILLS.filter(([,re])=>re.test(text)).map(([name])=>name);
   return found.length?found.slice(0,10):['Engineering'];
 }
-function isInternship(job){
-  const title=String(job.text||'');
-  const commitment=String(job.categories?.commitment||'');
-  const team=String(job.categories?.team||'');
-  const blob=`${title} ${commitment} ${team}`.toLowerCase();
+function degreeFieldsFrom(text=''){
+  return DEGREE_FIELDS.filter(([,re])=>re.test(text)).map(([name])=>name);
+}
+function isInternshipText(title='',extra=''){
+  const blob=`${title} ${extra}`.toLowerCase();
   const intern=/intern|co-?op|seasonal/.test(blob);
-  const engineering=/engineer|mechanical|manufacturing|structures?|propulsion|systems?|test|controls?|process|piping|electrical|design|supply chain|avionics|flight software|gnc|automation/.test(blob);
+  const engineering=/engineer|mechanical|manufacturing|structures?|propulsion|systems?|test|controls?|process|piping|electrical|design|supply chain|avionics|flight software|gnc|automation|cad|hardware/.test(blob);
   const wrongYear=/202[0-6]|202[8-9]/.test(title);
   return intern&&engineering&&!wrongYear;
 }
-function seasonFrom(job){
-  const title=String(job.text||'').toLowerCase();
+function seasonFromText(value=''){
+  const text=String(value).toLowerCase();
   const seasons=[];
-  if(title.includes('spring'))seasons.push('Spring');
-  if(title.includes('summer'))seasons.push('Summer');
-  if(title.includes('fall')||title.includes('autumn'))seasons.push('Fall');
+  if(titleHas(text,'spring'))seasons.push('Spring');
+  if(titleHas(text,'summer'))seasons.push('Summer');
+  if(titleHas(text,'fall')||titleHas(text,'autumn'))seasons.push('Fall');
+  if(titleHas(text,'winter'))seasons.push('Winter');
   return seasons.length?seasons:['Unspecified'];
 }
-function modeFrom(job){
-  const raw=String(job.workplaceType||job.categories?.workplaceType||'').toLowerCase();
-  if(raw.includes('remote'))return 'Remote';
-  if(raw.includes('hybrid'))return 'Hybrid';
+function titleHas(text,word){return text.includes(word)}
+function inferMode(raw='',location='',content=''){
+  const text=`${raw} ${location} ${content}`.toLowerCase();
+  if(/\bremote\b/.test(text))return 'Remote';
+  if(/\bhybrid\b/.test(text))return 'Hybrid';
   return 'On-site';
 }
-function locationFrom(job){return job.categories?.location||job.categories?.allLocations?.join(' / ')||'Location not listed'}
+function normalizeCommon({id,company,title,location,mode,season,full,desc,source,applyUrl,provider,postedAt}){
+  return {id,company,title,location:location||'Location not listed',mode,season,skills:skillsFrom(full),degreeFields:degreeFieldsFrom(full),preferred:[],deadline:'Not listed',source,applyUrl,desc:(desc||'See the employer listing for full role details.').slice(0,1400),live:true,provider,postedAt:postedAt||null};
+}
+function isLeverInternship(job){return isInternshipText(job.text||'',`${job.categories?.commitment||''} ${job.categories?.team||''}`)}
+function locationFromLever(job){return job.categories?.location||job.categories?.allLocations?.join(' / ')||'Location not listed'}
 function normalizeLever(job,source){
   const text=stripHtml(job.descriptionPlain||job.description||'');
   const lists=Array.isArray(job.lists)?job.lists.map(x=>`${x.text||''} ${stripHtml(x.content||'')}`).join(' '):'';
   const full=`${job.text||''} ${text} ${lists}`;
-  const desc=(text||stripHtml(lists)||'See the employer listing for full role details.').slice(0,1100);
-  return {
-    id:`lever-${source.site}-${job.id}`,
-    company:source.company,
-    title:job.text||'Engineering Internship',
-    location:locationFrom(job),
-    mode:modeFrom(job),
-    season:seasonFrom(job),
-    skills:skillsFrom(full),
-    preferred:[],
-    deadline:'Not listed',
-    source:'Live · employer Lever board',
-    applyUrl:job.hostedUrl||job.applyUrl||'',
-    desc,
-    live:true,
-    provider:'Lever',
-    postedAt:job.createdAt||null
-  };
+  const location=locationFromLever(job);
+  return normalizeCommon({id:`lever-${source.site}-${job.id}`,company:source.company,title:job.text||'Engineering Internship',location,mode:inferMode(job.workplaceType||job.categories?.workplaceType||'',location,full),season:seasonFromText(job.text||''),full,desc:text||stripHtml(lists),source:'Live · employer Lever board',applyUrl:job.hostedUrl||job.applyUrl||'',provider:'Lever',postedAt:job.createdAt||null});
 }
 async function fetchLever(source){
   const controller=new AbortController();
@@ -80,15 +85,35 @@ async function fetchLever(source){
     const r=await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(source.site)}?mode=json`,{headers:{accept:'application/json','user-agent':'InternAI/1.0'},signal:controller.signal});
     if(!r.ok)throw new Error(`${source.site}: ${r.status}`);
     const data=await r.json();
-    return (Array.isArray(data)?data:[]).filter(isInternship).map(j=>normalizeLever(j,source));
+    return (Array.isArray(data)?data:[]).filter(isLeverInternship).map(j=>normalizeLever(j,source));
   }finally{clearTimeout(timer)}
 }
+function normalizeGreenhouse(job,source){
+  const title=job.title||'Engineering Internship';
+  const content=stripHtml(job.content||'');
+  const location=job.location?.name||'Location not listed';
+  const dept=Array.isArray(job.departments)?job.departments.map(x=>x.name||'').join(' '):'';
+  const office=Array.isArray(job.offices)?job.offices.map(x=>x.name||'').join(' '):'';
+  const full=`${title} ${dept} ${office} ${content}`;
+  return normalizeCommon({id:`greenhouse-${source.site}-${job.id}`,company:source.company,title,location,mode:inferMode('',location,content),season:seasonFromText(title),full,desc:content,source:'Live · employer Greenhouse board',applyUrl:job.absolute_url||'',provider:'Greenhouse',postedAt:job.updated_at?Date.parse(job.updated_at):null});
+}
+async function fetchGreenhouse(source){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),7000);
+  try{
+    const r=await fetch(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(source.site)}/jobs?content=true`,{headers:{accept:'application/json','user-agent':'InternAI/1.0'},signal:controller.signal});
+    if(!r.ok)throw new Error(`${source.site}: ${r.status}`);
+    const data=await r.json();
+    return (Array.isArray(data.jobs)?data.jobs:[]).filter(j=>isInternshipText(j.title||'',`${(j.departments||[]).map(x=>x.name||'').join(' ')} ${stripHtml(j.content||'')}`)).map(j=>normalizeGreenhouse(j,source));
+  }finally{clearTimeout(timer)}
+}
+async function fetchSource(source){return source.provider==='greenhouse'?fetchGreenhouse(source):fetchLever(source)}
 
 module.exports=async function handler(req,res){
   if(req.method!=='GET'){res.setHeader('Allow','GET');return res.status(405).json({error:'Method not allowed'});}
-  const settled=await Promise.allSettled(SOURCES.map(fetchLever));
+  const settled=await Promise.allSettled(SOURCES.map(fetchSource));
   const jobs=settled.flatMap(x=>x.status==='fulfilled'?x.value:[]);
   const unique=[...new Map(jobs.map(j=>[j.applyUrl||j.id,j])).values()].sort((a,b)=>(b.postedAt||0)-(a.postedAt||0));
   res.setHeader('Cache-Control','s-maxage=600, stale-while-revalidate=1800');
-  return res.status(200).json({jobs:unique,count:unique.length,source:'public-employer-boards',providers:['Lever'],employers:SOURCES.map(s=>s.company),updatedAt:new Date().toISOString(),partial:settled.some(x=>x.status==='rejected')});
+  return res.status(200).json({jobs:unique,count:unique.length,source:'public-employer-boards',providers:['Lever','Greenhouse'],employers:SOURCES.map(s=>s.company),updatedAt:new Date().toISOString(),partial:settled.some(x=>x.status==='rejected')});
 };
