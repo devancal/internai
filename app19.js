@@ -85,7 +85,21 @@ async function internSignIn(email,password){if(!internSupabase)return toast('Clo
 async function internSignUp(email,password){if(!internSupabase)return toast('Cloud account service is still loading');const {error}=await internSupabase.auth.signUp({email,password});if(error)return toast(error.message);toast('Account created — check your email if confirmation is required')}
 async function internSignOut(){if(!internSupabase)return;const userId=internUser?.id;const {error}=await internSupabase.auth.signOut();if(error)return toast(error.message);if(internUser&&internUser.id!==userId)return;adoptInternUser(null);renderAccountControls();toast('Signed out — your account workspace is preserved for your next sign-in')}
 function accountControls(){return internUser?`<div class="row"><span style="font-size:11px;color:#64706a">${esc(internUser.email||'Signed in')}</span><button class="btn outline small" onclick="internSignOut()">Sign out</button></div>`:`<button class="btn outline small" onclick="accountDialog()">Sign in</button>`}
-function accountDialog(){const email=prompt('InternAI account email');if(!email)return;const password=prompt('Password (8+ characters)');if(!password)return;const create=confirm('OK = create a new account. Cancel = sign in to an existing account.');return create?internSignUp(email,password):internSignIn(email,password)}
+function accountDialog(){
+ if(document.getElementById('intern-account-dialog'))return;
+ const dialog=document.createElement('dialog');dialog.id='intern-account-dialog';
+ dialog.style.cssText='border:1px solid #d7e1d9;border-radius:16px;padding:24px;width:min(420px,calc(100vw - 40px))';
+ dialog.innerHTML=`<form><h2 style="margin-top:0">InternAI account</h2><div class="field"><label for="intern-account-email">Email</label><input id="intern-account-email" name="email" type="email" autocomplete="username" required></div><div class="field" style="margin-top:12px"><label for="intern-account-password">Password</label><input id="intern-account-password" name="password" type="password" autocomplete="current-password" required></div><p class="meta">New accounts require a password of at least 8 characters.</p><div class="row"><button class="btn dark" type="submit" name="action" value="signin">Sign in</button><button class="btn outline" type="submit" name="action" value="signup">Create account</button><button class="btn outline" type="button" data-cancel>Cancel</button></div></form>`;
+ dialog.querySelector('[data-cancel]').addEventListener('click',()=>dialog.close());
+ dialog.addEventListener('close',()=>dialog.remove());
+ dialog.querySelector('form').addEventListener('submit',async event=>{
+  event.preventDefault();const form=event.currentTarget,email=form.elements.email.value.trim(),password=form.elements.password.value,create=event.submitter?.value==='signup';
+  if(create&&password.length<8)return toast('Use at least 8 characters for a new password');
+  const buttons=dialog.querySelectorAll('button[type="submit"]');buttons.forEach(button=>button.disabled=true);
+  try{await (create?internSignUp(email,password):internSignIn(email,password))}catch{toast('Account service unavailable. Please try again.')}finally{form.elements.password.value='';dialog.close()}
+ });
+ document.body.appendChild(dialog);dialog.showModal();
+}
 function renderAccountControls(){const bar=document.querySelector('.appbar .row');if(!bar)return;let box=document.getElementById('account-controls');if(!box){box=document.createElement('span');box.id='account-controls';bar.prepend(box)}box.innerHTML=accountControls()}
 async function initInternCloud(){
  if(!supabaseReady())return;
