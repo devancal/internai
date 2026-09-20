@@ -3,6 +3,7 @@ const INTERN_SUPABASE_URL='https://hoodrasmrhdzkjhmrorq.supabase.co';
 const INTERN_SUPABASE_KEY='sb_publishable_m6WNadKQPbivmJORFEageA_qKioCJiV';
 let internSupabase=null,internUser=null,internSyncTimer=null,internHydrating=false,internEpoch=0,internCloudReady=false,internPushActive=false,internRevision=0;
 const INTERN_OWNER_KEY='internai-local-owner';
+let internWorkspaceOwner=localStorage.getItem(INTERN_OWNER_KEY);
 function supabaseReady(){return !!(window.supabase&&window.supabase.createClient)}
 function profileRow(p={}){return{user_id:internUser.id,name:p.name||'',personal_email:p.personalEmail||'',school_email:p.schoolEmail||'',school:p.school||'',major:p.major||'',grad:p.grad||'',gpa:p.gpa||'',location:p.location||'',work_preference:p.workPreference||'',summary:p.summary||'',skills:Array.isArray(p.skills)?p.skills:[],resume_text:p.resumeText||'',resume_filename:p.resumeFilename||'',evidence:Array.isArray(p.evidence)?p.evidence:[],career_graph:p.careerGraph||{},updated_at:new Date().toISOString()}}
 function profileState(r={}){return{name:r.name||'',personalEmail:r.personal_email||'',schoolEmail:r.school_email||'',school:r.school||'',major:r.major||'',grad:r.grad||'',gpa:r.gpa||'',location:r.location||'',workPreference:r.work_preference||'',summary:r.summary||'',skills:r.skills||[],resumeText:r.resume_text||'',resumeFilename:r.resume_filename||'',evidence:r.evidence||[],careerGraph:r.career_graph||{}}}
@@ -17,15 +18,15 @@ function adoptInternUser(user){
  const id=user?.id||null;
  if(id===(internUser?.id||null)&&!(id===null&&localStorage.getItem(INTERN_OWNER_KEY))){internUser=user;return false}
  clearTimeout(internSyncTimer);internEpoch++;internCloudReady=false;internHydrating=false;internPushActive=false;
- const owner=localStorage.getItem(INTERN_OWNER_KEY);
+ const owner=internWorkspaceOwner;
  if(owner)localStorage.setItem(recoveryKey(owner),JSON.stringify(state));
  internUser=user;
- const cached=id&&localStorage.getItem(recoveryKey(id));
+ const cached=id&&(localStorage.getItem(INTERN_OWNER_KEY)===id?localStorage.getItem('internai-demo'):localStorage.getItem(recoveryKey(id)));
  if((owner&&owner!==id)||(!owner&&cached)){
   if(!owner)localStorage.setItem(recoveryKey('anonymous'),JSON.stringify(state));
   try{state=cached?JSON.parse(cached):structuredClone(defaultState)}catch{state=structuredClone(defaultState)}
   localStorage.setItem('internai-demo',JSON.stringify(state));
-  if(id)localStorage.setItem(INTERN_OWNER_KEY,id);else localStorage.removeItem(INTERN_OWNER_KEY);
+  internWorkspaceOwner=id;if(id)localStorage.setItem(INTERN_OWNER_KEY,id);else localStorage.removeItem(INTERN_OWNER_KEY);
  }
  jobsData=jobsData.filter(j=>!j.imported);jobsData=[...(state.importedJobs||[]),...jobsData];renderAccountControls();renderCloudWorkspace();return true;
 }
@@ -48,13 +49,13 @@ async function cloudPull(){
   if(revision!==internRevision){toast('Cloud restore paused: local edits preserved. Reload to retry.');return}
   if((cloudHasData||(owner===id&&p&&s))&&!pending){
    if(!owner)localStorage.setItem(recoveryKey('anonymous'),JSON.stringify(local));
-   state={...structuredClone(defaultState),page:local.page,profile:cloudProfile,saved:s?.saved||[],apps:s?.applications||[]};
+   state={...structuredClone(defaultState),page:local.page,profile:cloudProfile,saved:s?.saved||[],apps:s?.applications||[],...(owner===id&&local.importedJobs?{importedJobs:local.importedJobs}:{})};
   }else if(owner&&owner!==id){state=structuredClone(defaultState)}
-  localStorage.setItem(INTERN_OWNER_KEY,id);
+  internWorkspaceOwner=id;localStorage.setItem(INTERN_OWNER_KEY,id);
   localStorage.setItem('internai-demo',JSON.stringify(state));
   internCloudReady=true;internHydrating=false;
   if((!cloudHasData&&!(owner===id&&p&&s))||pending)await cloudPush();
-  if(currentSession(id,epoch))renderCloudWorkspace();
+  if(currentSession(id,epoch)){jobsData=jobsData.filter(j=>!j.imported);jobsData=[...(state.importedJobs||[]),...jobsData];renderCloudWorkspace()}
  }catch(e){if(currentSession(id,epoch)){console.warn('InternAI cloud restore failed; local state preserved.');toast('Cloud restore unavailable. Local changes are safe; reload to retry.')}}
  finally{if(currentSession(id,epoch))internHydrating=false}
 }
