@@ -1,5 +1,5 @@
 function generateDraft(a){const p=state.profile;const skills=p.skills.slice(0,5);return `Dear ${a.company} Hiring Team,\n\nI am interested in the ${a.title} opportunity. ${p.school?`I am studying ${p.major||'engineering'} at ${p.school}${p.grad?`, with an expected graduation of ${p.grad}`:''}. `:''}${skills.length?`Skills documented in my profile include ${skills.join(', ')}. `:''}${p.summary?p.summary+' ':''}\n\nI would welcome the opportunity to discuss how my background aligns with the role.\n\nSincerely,\n${p.name||'[Your name]'}`}
-function saveApp(id){const a=state.apps.find(x=>x.id===id);a.status=document.getElementById('astatus').value;a.notes=document.getElementById('anotes').value;persist();toast('Application saved')}
+function saveApp(id){const a=state.apps.find(x=>x.id===id);if(!a)return;recordStatus(a,document.getElementById('astatus').value);a.notes=document.getElementById('anotes').value;persist();toast('Application saved')}
 function saveDraft(id){const a=state.apps.find(x=>x.id===id);a.draft=document.getElementById('adraft').value;persist();toast('Draft saved')}
 function regenerate(id){const a=state.apps.find(x=>x.id===id);document.getElementById('adraft').value=generateDraft(a)}
 function filteredSuggestions(list,value){const q=(value||'').trim().toLowerCase();if(!q)return[];return list.filter(v=>v.toLowerCase().includes(q)).slice(0,8)}

@@ -24,7 +24,7 @@ function adoptInternUser(user){
  const cached=id&&(localStorage.getItem(INTERN_OWNER_KEY)===id?localStorage.getItem('internai-demo'):localStorage.getItem(recoveryKey(id)));
  if((owner&&owner!==id)||(!owner&&cached)){
   if(!owner)localStorage.setItem(recoveryKey('anonymous'),JSON.stringify(state));
-  try{state=cached?JSON.parse(cached):structuredClone(defaultState)}catch{state=structuredClone(defaultState)}
+  try{state=cached?migrateState(JSON.parse(cached)):structuredClone(defaultState)}catch{state=structuredClone(defaultState)}
   localStorage.setItem('internai-demo',JSON.stringify(state));
   internWorkspaceOwner=id;if(id)localStorage.setItem(INTERN_OWNER_KEY,id);else localStorage.removeItem(INTERN_OWNER_KEY);
  }
@@ -49,7 +49,7 @@ async function cloudPull(){
   if(revision!==internRevision){toast('Cloud restore paused: local edits preserved. Reload to retry.');return}
   if((cloudHasData||(owner===id&&p&&s))&&!pending){
    if(!owner)localStorage.setItem(recoveryKey('anonymous'),JSON.stringify(local));
-   state={...structuredClone(defaultState),page:local.page,profile:cloudProfile,saved:s?.saved||[],apps:s?.applications||[],...(owner===id&&local.importedJobs?{importedJobs:local.importedJobs}:{})};
+   state=migrateState({...structuredClone(defaultState),page:local.page,profile:cloudProfile,saved:s?.saved||[],apps:s?.applications||[],...(owner===id&&local.importedJobs?{importedJobs:local.importedJobs}:{})});
   }else if(owner&&owner!==id){state=structuredClone(defaultState)}
   internWorkspaceOwner=id;localStorage.setItem(INTERN_OWNER_KEY,id);
   localStorage.setItem('internai-demo',JSON.stringify(state));
@@ -57,7 +57,7 @@ async function cloudPull(){
   if((!cloudHasData&&!(owner===id&&p&&s))||pending)await cloudPush();
   if(currentSession(id,epoch)){jobsData=jobsData.filter(j=>!j.imported);jobsData=[...(state.importedJobs||[]),...jobsData];renderCloudWorkspace()}
  }catch(e){if(currentSession(id,epoch)){console.warn('InternAI cloud restore failed; local state preserved.');toast('Cloud restore unavailable. Local changes are safe; reload to retry.')}}
- finally{if(currentSession(id,epoch))internHydrating=false}
+ finally{if(currentSession(id,epoch)){internHydrating=false;renderAccountControls()}}
 }
 async function cloudPush(){
  if(!internUser||!internCloudReady||internHydrating||internPushActive)return;
@@ -81,10 +81,30 @@ const localPersist=persist;persist=function(){
  localPersist();if(!changed)return;internRevision++;
  if(internUser){localStorage.setItem(INTERN_PENDING_KEY+':'+internUser.id,'true');renderAccountControls();clearTimeout(internSyncTimer);internSyncTimer=setTimeout(cloudPush,350)}
 };
-async function internSignIn(email,password){if(!internSupabase)return toast('Cloud account service is still loading');const {error}=await internSupabase.auth.signInWithPassword({email,password});if(error)return toast(error.message);toast('Signed in — syncing your workspace')}
-async function internSignUp(email,password){if(!internSupabase)return toast('Cloud account service is still loading');const {error}=await internSupabase.auth.signUp({email,password});if(error)return toast(error.message);toast('Account created — check your email if confirmation is required')}
+async function internSignIn(email,password){if(!internSupabase)return toast('Cloud account service is still loading');const {error}=await internSupabase.auth.signInWithPassword({email,password});if(error){toast(error.message);return false}toast('Signed in — syncing your workspace');return true}
+async function internSignUp(email,password){if(!internSupabase)return toast('Cloud account service is still loading');const {error}=await internSupabase.auth.signUp({email,password});if(error){toast(error.message);return false}toast('Account created — check your email if confirmation is required');return true}
 async function internRequestPasswordReset(email){if(!internSupabase)return toast('Cloud account service is still loading');if(!email)return toast('Enter your account email first');const options=location.origin?{redirectTo:location.origin}:undefined;const {error}=await internSupabase.auth.resetPasswordForEmail(email,options);if(error)return toast(error.message);toast('If that account exists, a password reset email is on the way')}
-function internPasswordUpdateDialog(){if(document.getElementById('intern-password-dialog'))return;const dialog=document.createElement('dialog');dialog.id='intern-password-dialog';dialog.style.cssText='border:1px solid #d7e1d9;border-radius:16px;padding:24px;width:min(420px,calc(100vw - 40px))';dialog.innerHTML=`<form><h2 style="margin-top:0">Choose a new password</h2><div class="field"><label for="intern-new-password">New password</label><input id="intern-new-password" name="password" type="password" autocomplete="new-password" minlength="8" required></div><p class="meta">Use at least 8 characters.</p><div class="row" style="margin-top:14px"><button class="btn dark" type="submit">Update password</button></div></form>`;dialog.addEventListener('close',()=>dialog.remove());dialog.querySelector('form').addEventListener('submit',async event=>{event.preventDefault();const password=event.currentTarget.elements.password.value;if(password.length<8)return toast('Use at least 8 characters');const {error}=await internSupabase.auth.updateUser({password});event.currentTarget.elements.password.value='';if(error)return toast(error.message);toast('Password updated');dialog.close()});document.body.appendChild(dialog);dialog.showModal()}
+function internPasswordUpdateDialog(){
+ if(document.getElementById('intern-password-dialog'))return;
+ const dialog=document.createElement('dialog');dialog.id='intern-password-dialog';
+ dialog.style.cssText='border:1px solid #d7e1d9;border-radius:16px;padding:24px;width:min(420px,calc(100vw - 40px))';
+ dialog.innerHTML=`<form><h2 style="margin-top:0">Choose a new password</h2><div class="field"><label for="intern-new-password">New password</label><input id="intern-new-password" name="password" type="password" autocomplete="new-password" minlength="8" required></div><p class="meta">Use at least 8 characters.</p><div class="row" style="margin-top:14px"><button class="btn dark" type="submit">Update password</button><button class="btn outline" type="button" data-cancel>Cancel</button></div></form>`;
+ dialog.addEventListener('close',()=>dialog.remove());
+ dialog.querySelector('[data-cancel]').addEventListener('click',()=>dialog.close());
+ dialog.querySelector('form').addEventListener('submit',async event=>{
+  event.preventDefault();const form=event.currentTarget,password=form.elements.password.value,button=form.querySelector('button[type="submit"]');
+  if(password.length<8)return toast('Use at least 8 characters');
+  const id=internUser?.id,epoch=internEpoch;button.disabled=true;
+  try{
+   const {error}=await internSupabase.auth.updateUser({password});
+   if(!currentSession(id,epoch))return;
+   if(error)return toast(error.message);
+   toast('Password updated');dialog.close();
+  }catch{toast('Password update unavailable. Please try again.')}
+  finally{form.elements.password.value='';button.disabled=false}
+ });
+ document.body.appendChild(dialog);dialog.showModal();
+}
 async function internSignOut(){if(!internSupabase)return;const userId=internUser?.id;const {error}=await internSupabase.auth.signOut();if(error)return toast(error.message);if(internUser&&internUser.id!==userId)return;adoptInternUser(null);renderAccountControls();toast('Signed out — your account workspace is preserved for your next sign-in')}
 function accountControls(){return internUser?`<div class="row"><span style="font-size:11px;color:#64706a">${esc(internUser.email||'Signed in')}</span><button class="btn outline small" onclick="internSignOut()">Sign out</button></div>`:`<button class="btn outline small" onclick="accountDialog()">Sign in</button>`}
 function accountDialog(){
@@ -93,13 +113,13 @@ function accountDialog(){
  dialog.style.cssText='border:1px solid #d7e1d9;border-radius:16px;padding:24px;width:min(420px,calc(100vw - 40px))';
  dialog.innerHTML=`<form><h2 style="margin-top:0">InternAI account</h2><div class="field"><label for="intern-account-email">Email</label><input id="intern-account-email" name="email" type="email" autocomplete="username" required></div><div class="field" style="margin-top:12px"><label for="intern-account-password">Password</label><input id="intern-account-password" name="password" type="password" autocomplete="current-password" required></div><p class="meta">New accounts require a password of at least 8 characters.</p><div class="row"><button class="btn dark" type="submit" name="action" value="signin">Sign in</button><button class="btn outline" type="submit" name="action" value="signup">Create account</button><button class="btn outline" type="button" data-reset>Forgot password?</button><button class="btn outline" type="button" data-cancel>Cancel</button></div></form>`;
  dialog.querySelector('[data-cancel]').addEventListener('click',()=>dialog.close());
- dialog.querySelector('[data-reset]').addEventListener('click',async()=>{const email=dialog.querySelector('#intern-account-email').value.trim();await internRequestPasswordReset(email)});
+ dialog.querySelector('[data-reset]').addEventListener('click',async()=>{const email=dialog.querySelector('#intern-account-email').value.trim();if(!dialog.querySelector('#intern-account-email').reportValidity())return;try{await internRequestPasswordReset(email)}catch{toast('Password reset unavailable. Please try again.')}});
  dialog.addEventListener('close',()=>dialog.remove());
  dialog.querySelector('form').addEventListener('submit',async event=>{
   event.preventDefault();const form=event.currentTarget,email=form.elements.email.value.trim(),password=form.elements.password.value,create=event.submitter?.value==='signup';
   if(create&&password.length<8)return toast('Use at least 8 characters for a new password');
   const buttons=dialog.querySelectorAll('button[type="submit"]');buttons.forEach(button=>button.disabled=true);
-  try{await (create?internSignUp(email,password):internSignIn(email,password))}catch{toast('Account service unavailable. Please try again.')}finally{form.elements.password.value='';dialog.close()}
+  try{const ok=await (create?internSignUp(email,password):internSignIn(email,password));if(ok)dialog.close()}catch{toast('Account service unavailable. Please try again.')}finally{form.elements.password.value='';buttons.forEach(button=>button.disabled=false)}
  });
  document.body.appendChild(dialog);dialog.showModal();
 }
