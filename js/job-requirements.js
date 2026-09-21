@@ -12,14 +12,14 @@ function buildJobRequirementGraph(j){
  const add=(text,kind,source='Employer listing',skills=evidenceSkillHits(text))=>{if(nodes.some(n=>n.text===text))return;nodes.push({id:`jobreq-${nodes.length}`,kind,label:requirementLabel(text),text,skills,tokens:evidenceTokens(text),weight:requirementWeight(kind),source})};
  for(const sentence of sentences){
   const heading=sentence.replace(/[:\s]+$/,'').toLowerCase();
-  if(/^(requirements|qualifications|minimum qualifications|basic qualifications|what you bring|what we're looking for)$/.test(heading)){section='required';continue}
+  if(/^(requirements|required qualifications|qualifications|minimum qualifications|basic qualifications|what you bring|what we're looking for)$/.test(heading)){section='required';continue}
   if(/^(bonus|preferred qualifications|preferred|nice to have)$/.test(heading)){section='preferred';continue}
-  if(/^(role|responsibilities|duties|what you'll do|what you will do)$/.test(heading)){section='responsibility';continue}
+  if(/^(role|primary responsibilities|responsibilities|duties|what you'll do|what you will do)$/.test(heading)){section='responsibility';continue}
   if(/^(benefits|compensation|about us|equal opportunity|sms terms of service)/i.test(heading)){section='ignore';continue}
-  if(section==='ignore'||!/[a-zA-Z]/.test(sentence))continue;
+  if(/equal opportunity employers?|tobacco-free|drug.{0,10}testing|third.party recruiters|colorado residents|artificial intelligence:/i.test(sentence)){section='ignore';continue}if(section==='ignore'||!/[a-zA-Z]/.test(sentence))continue;
   if(sentence===j.title||sentence.toLowerCase().startsWith((j.company||'__no_company__').toLowerCase()+' ')||/^(our |we |many past interns|if you have already graduated)/i.test(sentence))continue;
   if(!section&&!/required|requirement|qualif|preferred|degree|major|pursuing|enrolled|student|graduat|gpa|citizen|authorized|authorization|sponsor|visa|experience|proficien|knowledge|familiar|ability|responsibil|you will|you'll|design|develop|build|test|analy|manufactur|cad|solidworks|python|matlab|excel/i.test(sentence))continue;
-  const kind=requirementKind(sentence);if(/(?:base|hourly|annual) (?:pay|salary)|\$\s*\d/.test(sentence.toLowerCase()))continue;add(sentence,kind==='eligibility'?kind:section==='preferred'?'preferred':section||kind);
+  const kind=requirementKind(sentence);if(/(?:base|hourly|annual) (?:pay|salary)|\$\s*\d/.test(sentence.toLowerCase()))continue;add(sentence,section==='preferred'?'preferred':kind==='eligibility'?kind:section||kind);
  }
  for(const skill of j.skills||[]){if(!skill||skill==='Engineering'||nodes.some(n=>n.skills.some(s=>s.toLowerCase()===skill.toLowerCase())))continue;add(`Employer listing identifies ${skill}`,'required','Employer listing metadata',[skill])}
  // Degree metadata lists alternatives, not a requirement to hold every listed major.

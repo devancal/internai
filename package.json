@@ -1,0 +1,7 @@
+{
+  "name": "internai",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {"test": "node --test tests/*.cjs", "test:browser": "playwright test"},
+  "devDependencies": {"@playwright/test": "1.63.0"}
+}

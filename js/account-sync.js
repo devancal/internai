@@ -6,6 +6,10 @@ const INTERN_SUPABASE_KEY='sb_publishable_m6WNadKQPbivmJORFEageA_qKioCJiV';
 let internSupabase=null,internUser=null,internSyncTimer=null,internHydrating=false,internEpoch=0,internCloudReady=false,internPushActive=false,internRevision=0;
 const INTERN_OWNER_KEY='internai-local-owner';
 let internWorkspaceOwner=localStorage.getItem(INTERN_OWNER_KEY);
+let internLastStored=localStorage.getItem('internai-demo'),internTabStale=false,internLocalSaveFailed=false;
+function markWorkspaceBaseline(){internLastStored=localStorage.getItem('internai-demo');internTabStale=false}
+function checkWorkspaceBaseline(){if(localStorage.getItem('internai-demo')!==internLastStored){internTabStale=true;internCloudReady=false;renderAccountControls();return false}return !internTabStale}
+
 function supabaseReady(){return !!(window.supabase&&window.supabase.createClient)}
 function profileRow(p={}){return{user_id:internUser.id,name:p.name||'',personal_email:p.personalEmail||'',school_email:p.schoolEmail||'',school:p.school||'',major:p.major||'',grad:p.grad||'',gpa:p.gpa||'',location:p.location||'',work_preference:p.workPreference||'',summary:p.summary||'',skills:Array.isArray(p.skills)?p.skills:[],resume_text:p.resumeText||'',resume_filename:p.resumeFilename||'',evidence:Array.isArray(p.evidence)?p.evidence:[],career_graph:p.careerGraph||{},updated_at:new Date().toISOString()}}
 function profileState(r={}){return{name:r.name||'',personalEmail:r.personal_email||'',schoolEmail:r.school_email||'',school:r.school||'',major:r.major||'',grad:r.grad||'',gpa:r.gpa||'',location:r.location||'',workPreference:r.work_preference||'',summary:r.summary||'',skills:r.skills||[],resumeText:r.resume_text||'',resumeFilename:r.resume_filename||'',evidence:r.evidence||[],careerGraph:r.career_graph||{}}}
@@ -30,7 +34,7 @@ function adoptInternUser(user){
   localStorage.setItem('internai-demo',JSON.stringify(state));
   internWorkspaceOwner=id;if(id)localStorage.setItem(INTERN_OWNER_KEY,id);else localStorage.removeItem(INTERN_OWNER_KEY);
  }
- jobsData=jobsData.filter(j=>!j.imported);jobsData=[...(state.importedJobs||[]),...jobsData];renderAccountControls();renderCloudWorkspace();return true;
+ markWorkspaceBaseline();jobsData=jobsData.filter(j=>!j.imported);jobsData=[...(state.importedJobs||[]),...jobsData];renderAccountControls();renderCloudWorkspace();return true;
 }
 async function cloudPull(){
  if(!internUser||internHydrating)return;
@@ -51,27 +55,27 @@ async function cloudPull(){
   if(revision!==internRevision){toast('Cloud restore paused: local edits preserved. Reload to retry.');return}
   if((cloudHasData||(owner===id&&p&&s))&&!pending){
    if(!owner)localStorage.setItem(recoveryKey('anonymous'),JSON.stringify(local));
-   state=migrateState({...structuredClone(defaultState),page:local.page,profile:cloudProfile,saved:s?.saved||[],apps:s?.applications||[],...(owner===id&&local.importedJobs?{importedJobs:local.importedJobs}:{})});
+   state=migrateState({...structuredClone(defaultState),page:local.page,profile:cloudProfile,saved:s?.saved||[],apps:s?.applications||[],importedJobs:[...new Map([...(owner===id?local.importedJobs||[]:[]),...(s?.applications||[]).map(a=>a.jobSnapshot).filter(j=>j?.imported)].map(j=>[j.id,j])).values()]});
   }else if(owner&&owner!==id){state=structuredClone(defaultState)}
   internWorkspaceOwner=id;localStorage.setItem(INTERN_OWNER_KEY,id);
   localStorage.setItem('internai-demo',JSON.stringify(state));
-  internCloudReady=true;internHydrating=false;renderAccountControls();
+  markWorkspaceBaseline();internCloudReady=true;internHydrating=false;renderAccountControls();
   if((!cloudHasData&&!(owner===id&&p&&s))||pending)await cloudPush();
   if(currentSession(id,epoch)){jobsData=jobsData.filter(j=>!j.imported);jobsData=[...(state.importedJobs||[]),...jobsData];renderCloudWorkspace()}
- }catch(e){if(currentSession(id,epoch)){console.warn('InternAI cloud restore failed; local state preserved.');toast('Cloud restore unavailable. Local changes are safe; reload to retry.')}}
+ }catch(e){if(currentSession(id,epoch)){recordDiagnostic('cloud_read_failed');console.warn('InternAI cloud restore failed; local state preserved.');toast('Cloud restore unavailable. Local changes are safe; reload to retry.')}}
  finally{if(currentSession(id,epoch)){internHydrating=false;renderAccountControls()}}
 }
 async function cloudPush(){
  if(!internUser||!internCloudReady||internHydrating||internPushActive)return;
  const id=internUser.id,epoch=internEpoch,revision=internRevision;
- if(localStorage.getItem(INTERN_OWNER_KEY)!==id)return;
+ if(localStorage.getItem(INTERN_OWNER_KEY)!==id||!checkWorkspaceBaseline())return;
  internPushActive=true;renderAccountControls();
  try{
   const p=profileRow(state.profile),s={user_id:id,saved:structuredClone(state.saved||[]),applications:structuredClone(state.apps||[]),updated_at:new Date().toISOString()};
   const [{error:pe},{error:se}]=await Promise.all([internSupabase.from('profiles').upsert(p),internSupabase.from('user_state').upsert(s)]);
   if(pe)throw pe;if(se)throw se;
   if(currentSession(id,epoch)&&revision===internRevision){localStorage.removeItem(INTERN_PENDING_KEY+':'+id);renderAccountControls()}
- }catch(e){if(currentSession(id,epoch)){localStorage.setItem(INTERN_PENDING_KEY+':'+id,'true');renderAccountControls();console.warn('InternAI cloud sync failed; local state preserved.');toast('Cloud sync failed. Changes are saved in this browser.')}}
+ }catch(e){if(currentSession(id,epoch)){localStorage.setItem(INTERN_PENDING_KEY+':'+id,'true');renderAccountControls();recordDiagnostic('cloud_write_failed');console.warn('InternAI cloud sync failed; local state preserved.');toast('Cloud sync failed. Changes are saved in this browser.')}}
  finally{if(currentSession(id,epoch)){internPushActive=false;renderAccountControls();if(revision!==internRevision){clearTimeout(internSyncTimer);internSyncTimer=setTimeout(cloudPush,350)}}}
 }
 function workspaceData(value){const {page,...data}=value;return JSON.stringify(data)}
@@ -79,8 +83,9 @@ const localPersist=persist;persist=function(){
  // A different tab may have switched accounts since this tab last rendered.
  const owner=localStorage.getItem(INTERN_OWNER_KEY);
  if((internUser&&owner&&owner!==internUser.id)||(!internUser&&owner))return;
+ if(!checkWorkspaceBaseline()){toast('Another tab changed this workspace. Download a backup before reloading this tab.');return false}
  const changed=workspaceData(load())!==workspaceData(state);
- localPersist();if(!changed)return;internRevision++;
+ try{localPersist();internLocalSaveFailed=false;markWorkspaceBaseline()}catch{internLocalSaveFailed=true;renderAccountControls();toast('Browser storage is full or unavailable. Download a workspace backup before closing this page.');recordDiagnostic('local_save_failed');return false}if(!changed)return;internRevision++;
  if(internUser){localStorage.setItem(INTERN_PENDING_KEY+':'+internUser.id,'true');renderAccountControls();clearTimeout(internSyncTimer);internSyncTimer=setTimeout(cloudPush,350)}
 };
 async function internSignIn(email,password){if(!internSupabase)return toast('Cloud account service is still loading');const {error}=await internSupabase.auth.signInWithPassword({email,password});if(error){toast(error.message);return false}toast('Signed in — syncing your workspace');return true}
@@ -125,8 +130,8 @@ function accountDialog(){
  });
  document.body.appendChild(dialog);dialog.showModal();
 }
-function syncLabel(){if(!internUser)return'';if(internHydrating)return' · Restoring…';if(internPushActive||localStorage.getItem(INTERN_PENDING_KEY+':'+internUser.id)==='true')return' · Sync pending';return internCloudReady?' · Synced':' · Local only'}
-function renderAccountControls(){const bar=document.querySelector('.appbar .row');if(!bar)return;let box=document.getElementById('account-controls');if(!box){box=document.createElement('span');box.id='account-controls';bar.prepend(box)}box.innerHTML=internUser?'<div class="row"><span style="font-size:11px;color:#64706a">'+esc(internUser.email||'Signed in')+esc(syncLabel())+'</span><button class="btn outline small" onclick="internSignOut()">Sign out</button></div>':accountControls()}
+function syncLabel(){if(internLocalSaveFailed)return' · Not saved — download backup';if(internTabStale)return' · Other tab changed workspace';if(!internUser)return'';if(internHydrating)return' · Restoring…';if(internPushActive||localStorage.getItem(INTERN_PENDING_KEY+':'+internUser.id)==='true')return' · Sync pending';return internCloudReady?' · Synced':' · Local only'}
+function renderAccountControls(){const bar=document.querySelector('.appbar .row');if(!bar)return;let box=document.getElementById('account-controls');if(!box){box=document.createElement('span');box.id='account-controls';bar.prepend(box)}box.innerHTML=internUser?'<div class="row"><span style="font-size:11px;color:#64706a">'+esc(internUser.email||'Signed in')+esc(syncLabel())+'</span><button class="btn outline small" onclick="retryInternSync()">Retry sync</button><button class="btn outline small" onclick="internSignOut()">Sign out</button></div>':accountControls()}
 async function initInternCloud(){
  if(!supabaseReady())return;
  internSupabase=window.supabase.createClient(INTERN_SUPABASE_URL,INTERN_SUPABASE_KEY);
@@ -144,3 +149,9 @@ async function initInternCloud(){
  if(internUser)await cloudPull();
 }
 window.addEventListener('DOMContentLoaded',initInternCloud);
+
+async function retryInternSync(){if(!internUser||internTabStale)return;if(internCloudReady)await cloudPush();else await cloudPull()}
+window.addEventListener('online',()=>{retryInternSync()});
+window.addEventListener('storage',event=>{if(event.key==='internai-demo'||event.key===INTERN_OWNER_KEY){if(!checkWorkspaceBaseline())toast('Workspace changed in another tab. Download your backup before reloading.')}});
+
+window.addEventListener('DOMContentLoaded',()=>{if(location.hash==='#app')openApp()});

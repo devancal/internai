@@ -1,7 +1,34 @@
 // Career Graph v2 — connect resume claims to parent experiences/projects and score jobs against those relationships.
-function careerGraphHeading(line=''){const t=line.trim();if(!t||t.length>120)return false;if(/[.!?]$/.test(t))return false;return /intern|engineer|assistant|technician|coach|mentor|formula|sae|asme|robot|project|design|university|college|club|society|team|experience/i.test(t)}
-function buildCareerGraph(txt=''){const lines=String(txt).replace(/\r/g,'\n').replace(/[•▪◦●]/g,'\n• ').split(/\n+/).map(x=>x.trim()).filter(Boolean),nodes=[],claims=[];let parent=null,ni=0,ci=0;for(const line of lines){if(/^education|skills?|coursework|objective|summary|contact$/i.test(line)){parent=null;continue}if(careerGraphHeading(line)&&!line.startsWith('•')){parent={id:`career-${ni++}`,type:evidenceTypeFor(line),title:evidenceTitleFor(line,ni),source:'Uploaded resume',sourceType:'resume',skills:evidenceSkillHits(line),tokens:evidenceTokens(line),claimIds:[]};nodes.push(parent);continue}if(line.length<20)continue;const claimText=line.replace(/^[-–—•\s]+/,'').trim();if(!claimText)continue;if(!parent){parent={id:`career-${ni++}`,type:evidenceTypeFor(claimText),title:evidenceTitleFor(claimText,ni),source:'Uploaded resume',sourceType:'resume',skills:[],tokens:[],claimIds:[]};nodes.push(parent)}const claim={id:`claim-${ci++}`,parentId:parent.id,text:claimText,skills:evidenceSkillHits(claimText),tokens:evidenceTokens(claimText),source:'Uploaded resume',confidence:1};claims.push(claim);parent.claimIds.push(claim.id);parent.skills=[...new Set([...parent.skills,...claim.skills])];parent.tokens=[...new Set([...parent.tokens,...claim.tokens])]}return{version:2,nodes:nodes.slice(0,20),claims:claims.slice(0,60)}}
-function ensureCareerGraph(){const p=state.profile;if(!p?.resumeText)return{version:2,nodes:[],claims:[]};if(!p.careerGraph||p.careerGraph.version!==2){p.careerGraph=buildCareerGraph(p.resumeText);persist()}return p.careerGraph}
+function resumeSectionHeading(line=''){return /^(?:education|(?:technical |professional )?skills|(?:relevant )?coursework|objective|summary|contact|(?:work |professional |relevant )?experience|(?:academic |personal |engineering )?projects|activities|leadership|honors|awards|certifications)\s*:?$/i.test(line.trim())}
+function careerGraphHeading(line=''){const t=line.trim();if(!t||t.length>150||/^[•▪◦●\-]/.test(t)||/[.!?]$/.test(t))return false;if(/^(?:designed|developed|built|created|tested|analyzed|supported|led|managed|collaborated|performed|used|implemented|improved|maintained|assisted|troubleshot)\b/i.test(t))return false;return /intern|engineer|assistant|technician|coach|mentor|formula|sae|asme|robot|project|design|university|college|club|society|team|experience/i.test(t)}
+function resumeClaimLines(txt=''){
+ const lines=String(txt).replace(/\r\n?/g,'\n').split(/\n/).map(x=>x.trim()),out=[];
+ let bullet=false;
+ for(const line of lines){
+  if(!line){bullet=false;continue}
+  const start=/^[•▪◦●\-–—]\s*/.test(line);
+  if(start){out.push(line.replace(/^[•▪◦●\-–—]\s*/, '• '));bullet=true;continue}
+  if(resumeSectionHeading(line)||careerGraphHeading(line)){out.push(line);bullet=false;continue}
+  if(bullet&&out.length){out[out.length-1]+=' '+line;continue}
+  out.push(line);
+ }
+ return out;
+}
+function buildCareerGraph(txt=''){
+ const lines=resumeClaimLines(txt),nodes=[],claims=[];let parent=null,ni=0,ci=0;
+ for(const line of lines){
+  if(resumeSectionHeading(line)){parent=null;continue}
+  if(careerGraphHeading(line)){parent={id:`career-${ni++}`,type:evidenceTypeFor(line),title:evidenceTitleFor(line,ni),source:'Uploaded resume',sourceType:'resume',skills:evidenceSkillHits(line),tokens:evidenceTokens(line),claimIds:[]};nodes.push(parent);continue}
+  if(line.length<20)continue;
+  const claimText=line.replace(/^[-–—•\s]+/,'').trim();if(!claimText)continue;
+  if(!parent){parent={id:`career-${ni++}`,type:evidenceTypeFor(claimText),title:evidenceTitleFor(claimText,ni),source:'Uploaded resume',sourceType:'resume',skills:[],tokens:[],claimIds:[]};nodes.push(parent)}
+  const claim={id:`claim-${ci++}`,parentId:parent.id,text:claimText,skills:evidenceSkillHits(claimText),tokens:evidenceTokens(claimText),source:'Uploaded resume',confidence:1};claims.push(claim);parent.claimIds.push(claim.id);parent.skills=[...new Set([...parent.skills,...claim.skills])];parent.tokens=[...new Set([...parent.tokens,...claim.tokens])];
+ }
+ const kept=nodes.slice(0,40),ids=new Set(kept.map(n=>n.id)),keptClaims=claims.filter(c=>ids.has(c.parentId)).slice(0,120),claimIds=new Set(keptClaims.map(c=>c.id));kept.forEach(n=>n.claimIds=n.claimIds.filter(id=>claimIds.has(id)));
+ return {version:3,nodes:kept,claims:keptClaims};
+}
+function ensureCareerGraph(){const p=state.profile;if(!p?.resumeText)return{version:3,nodes:[],claims:[]};if(!p.careerGraph||p.careerGraph.version!==3){p.careerGraph=buildCareerGraph(p.resumeText);persist()}return p.careerGraph}
+
 function graphEvidenceForJob(j){const graph=ensureCareerGraph(),job=jobEvidenceConcepts(j),ranked=graph.nodes.map(node=>{const nodeClaims=graph.claims.filter(c=>c.parentId===node.id),skillHits=(node.skills||[]).filter(s=>job.text.toLowerCase().includes(s.toLowerCase())),claimMatches=nodeClaims.map(c=>{const tokenHits=(c.tokens||[]).filter(t=>job.tokens.has(t)),skill=(c.skills||[]).filter(s=>job.text.toLowerCase().includes(s.toLowerCase()));return{claim:c,score:skill.length*5+Math.min(tokenHits.length,8),skillHits:skill,tokenHits}}).filter(x=>x.score>=2).sort((a,b)=>b.score-a.score),score=skillHits.length*5+claimMatches.slice(0,3).reduce((n,x)=>n+x.score,0);return{node,score,skillHits,claimMatches}}).filter(x=>x.score>=3).sort((a,b)=>b.score-a.score);return ranked.slice(0,5)}
 function graphRequirementMap(j){const graphMatches=graphEvidenceForJob(j),profileSkills=new Set((state.profile.skills||[]).map(x=>x.toLowerCase())),requirements=[...(j.skills||[]).filter(x=>x&&x!=='Engineering'),...(j.degreeFields||[]).map(x=>`${x} degree field`)],seen=new Set();return requirements.filter(req=>{const k=req.toLowerCase();if(seen.has(k))return false;seen.add(k);return true}).slice(0,10).map(req=>{const key=req.toLowerCase(),direct=(j.skills||[]).some(s=>s.toLowerCase()===key)&&profileSkills.has(key),related=graphMatches.filter(g=>g.skillHits.some(h=>key.includes(h.toLowerCase())||h.toLowerCase().includes(key))||g.claimMatches.some(c=>c.skillHits.some(h=>key.includes(h.toLowerCase())||h.toLowerCase().includes(key))||c.tokenHits.some(t=>key.includes(t)||t.includes(key))));return{req,supported:direct||related.length>0,support:direct?`Profile skill: ${req}`:related.length?`${related[0].node.type}: ${related[0].node.title}`:'Not documented in current evidence',evidenceIds:related.map(g=>g.node.id)}})}
 requirementEvidenceMap=function(j){return graphRequirementMap(j)};

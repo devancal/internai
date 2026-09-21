@@ -1,0 +1,21 @@
+[
+  "js/workspace.js",
+  "js/discovery-ui.js",
+  "js/application-kit.js",
+  "js/application-tracking.js",
+  "js/profile-ui.js",
+  "js/profile-editor.js",
+  "js/opportunity-ranking.js",
+  "js/employer-feeds.js",
+  "js/resume-evidence.js",
+  "js/career-graph.js",
+  "js/job-requirements.js",
+  "js/match-scoring.js",
+  "js/match-calibration.js",
+  "js/resume-extraction.js",
+  "js/material-generation.js",
+  "js/material-provenance.js",
+  "js/match-eligibility.js",
+  "js/match-regression.js",
+  "js/account-sync.js"
+]
