@@ -43,3 +43,7 @@ Recovery copies are browser-local, not encrypted backups. No password or service
 The existing GitHub `main` → Vercel pipeline is the deployment path. Runtime health uses Vercel's deployment hostname environment variables, not request-supplied forwarding headers. Production protection can prevent its internal probes as well as external QA; an authentication failure is not proof that ingestion is broken.
 
 Before declaring the beta ready, verify the deployed revision in a browser, desktop/mobile layouts, PDF upload with a real file, live employer ingestion, real signup/login and A/B account isolation, and Supabase RLS using authenticated test accounts. The local test suite does not certify these production checks.
+
+## Authentication email redirects
+
+In Supabase Authentication → URL Configuration, set Site URL to `https://internai-mvp-fixed-devancalabrese-2065.vercel.app/` and allow that exact URL under Redirect URLs. Signup and password recovery explicitly request this canonical URL; Supabase still requires it to be allowed. Do not use temporary Vercel share links or localhost as the production Site URL. Existing emails may retain their original redirect.

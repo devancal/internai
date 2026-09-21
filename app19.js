@@ -1,4 +1,6 @@
 // Supabase persistence bridge v1 — keeps the existing local-first MVP working while adding authenticated cloud sync.
+// Keep email callbacks on the canonical deployment, without preview/share parameters.
+const INTERN_AUTH_REDIRECT_URL='https://internai-mvp-fixed-devancalabrese-2065.vercel.app/';
 const INTERN_SUPABASE_URL='https://hoodrasmrhdzkjhmrorq.supabase.co';
 const INTERN_SUPABASE_KEY='sb_publishable_m6WNadKQPbivmJORFEageA_qKioCJiV';
 let internSupabase=null,internUser=null,internSyncTimer=null,internHydrating=false,internEpoch=0,internCloudReady=false,internPushActive=false,internRevision=0;
@@ -82,8 +84,8 @@ const localPersist=persist;persist=function(){
  if(internUser){localStorage.setItem(INTERN_PENDING_KEY+':'+internUser.id,'true');renderAccountControls();clearTimeout(internSyncTimer);internSyncTimer=setTimeout(cloudPush,350)}
 };
 async function internSignIn(email,password){if(!internSupabase)return toast('Cloud account service is still loading');const {error}=await internSupabase.auth.signInWithPassword({email,password});if(error){toast(error.message);return false}toast('Signed in — syncing your workspace');return true}
-async function internSignUp(email,password){if(!internSupabase)return toast('Cloud account service is still loading');const {error}=await internSupabase.auth.signUp({email,password});if(error){toast(error.message);return false}toast('Account created — check your email if confirmation is required');return true}
-async function internRequestPasswordReset(email){if(!internSupabase)return toast('Cloud account service is still loading');if(!email)return toast('Enter your account email first');const options=location.origin?{redirectTo:location.origin}:undefined;const {error}=await internSupabase.auth.resetPasswordForEmail(email,options);if(error)return toast(error.message);toast('If that account exists, a password reset email is on the way')}
+async function internSignUp(email,password){if(!internSupabase)return toast('Cloud account service is still loading');const {error}=await internSupabase.auth.signUp({email,password,options:{emailRedirectTo:INTERN_AUTH_REDIRECT_URL}});if(error){toast(error.message);return false}toast('Account created — check your email if confirmation is required');return true}
+async function internRequestPasswordReset(email){if(!internSupabase)return toast('Cloud account service is still loading');if(!email)return toast('Enter your account email first');const options={redirectTo:INTERN_AUTH_REDIRECT_URL};const {error}=await internSupabase.auth.resetPasswordForEmail(email,options);if(error)return toast(error.message);toast('If that account exists, a password reset email is on the way')}
 function internPasswordUpdateDialog(){
  if(document.getElementById('intern-password-dialog'))return;
  const dialog=document.createElement('dialog');dialog.id='intern-password-dialog';
