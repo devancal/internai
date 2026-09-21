@@ -16,7 +16,8 @@ function options(list){return list.map(v=>`<option value="${esc(v)}"></option>`)
 let state=load();
 let jobsData=[...seedJobs],jobsSource='fallback',jobsLoaded=false,jobsLoading=false;
 let jobFilters={query:'',location:'',mode:'all',saved:false,semester:'Summer'};
-function migrateState(saved={}){const next={...structuredClone(defaultState),...saved,profile:{...structuredClone(defaultState.profile),...(saved.profile||{})}};next.version=INTERN_STATE_VERSION;next.saved=Array.isArray(next.saved)?next.saved:[];next.apps=Array.isArray(next.apps)?next.apps:[];next.apps=next.apps.map(a=>({...a,status:a.status||'Interested',statusHistory:Array.isArray(a.statusHistory)?a.statusHistory:[]}));return next}\nfunction load(){try{return migrateState(JSON.parse(localStorage.getItem('internai-demo')||'{}'))}catch{return structuredClone(defaultState)}}
+function migrateState(saved={}){const next={...structuredClone(defaultState),...saved,profile:{...structuredClone(defaultState.profile),...(saved.profile||{})}};next.version=INTERN_STATE_VERSION;next.saved=Array.isArray(next.saved)?next.saved:[];next.apps=Array.isArray(next.apps)?next.apps:[];next.apps=next.apps.map(a=>({...a,status:a.status||'Interested',statusHistory:Array.isArray(a.statusHistory)?a.statusHistory:[]}));return next}
+function load(){try{return migrateState(JSON.parse(localStorage.getItem('internai-demo')||'{}'))}catch{return structuredClone(defaultState)}}
 function persist(){localStorage.setItem('internai-demo',JSON.stringify(state))}
 function safeApplyUrl(value){try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password?url.href:''}catch{return ''}}
 function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
