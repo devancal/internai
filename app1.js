@@ -20,6 +20,7 @@ function migrateState(saved={}){const next={...structuredClone(defaultState),...
 function load(){try{return migrateState(JSON.parse(localStorage.getItem('internai-demo')||'{}'))}catch{return structuredClone(defaultState)}}
 function persist(){localStorage.setItem('internai-demo',JSON.stringify(state))}
 function safeApplyUrl(value){try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password?url.href:''}catch{return ''}}
+function listingAvailability(job={}){const url=safeApplyUrl(job.applyUrl||'');if(!url)return{available:false,label:job.live?'Application link unavailable':'Sample listing',reason:job.live?'This employer listing does not currently provide a safe application link.':'This is an illustrative sample, not a live employer opening.'};return{available:true,label:'Employer application',reason:''}}
 function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)}
 function getJobById(id){return jobsData.find(x=>x.id===id)||state.apps.find(a=>a.jobId===id)?.jobSnapshot||seedJobs.find(x=>x.id===id)}
