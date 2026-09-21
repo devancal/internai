@@ -14,6 +14,7 @@ const locationSuggestions=['Cleveland, OH','Columbus, OH','Cincinnati, OH','Dayt
 const gradSuggestions=[];for(let y=new Date().getFullYear();y<=new Date().getFullYear()+8;y++)for(const m of ['May','August','December'])gradSuggestions.push(`${m} ${y}`);
 function options(list){return list.map(v=>`<option value="${esc(v)}"></option>`).join('')}
 let state=load();
+let internActiveView='dashboard';
 let jobsData=[...seedJobs],jobsSource='fallback',jobsLoaded=false,jobsLoading=false;
 let jobFilters={query:'',location:'',mode:'all',saved:false,semester:'Summer'};
 function migrateState(saved={}){const next={...structuredClone(defaultState),...saved,profile:{...structuredClone(defaultState.profile),...(saved.profile||{})}};next.version=INTERN_STATE_VERSION;next.saved=Array.isArray(next.saved)?next.saved:[];next.apps=Array.isArray(next.apps)?next.apps:[];next.apps=next.apps.map(a=>({...a,status:a.status||'Interested',statusHistory:Array.isArray(a.statusHistory)?a.statusHistory:[]}));return next}
@@ -30,7 +31,7 @@ function openApp(){document.getElementById('landing').classList.add('hidden');do
 function goHome(){document.getElementById('workspace').classList.add('hidden');document.getElementById('landing').classList.remove('hidden');window.scrollTo(0,0)}
 const pages=[['dashboard','Overview','▦'],['jobs','Discover','◎'],['applications','Applications','▣'],['profile','Profile','◉']];
 function renderNav(){document.getElementById('nav').innerHTML=pages.map(([id,label,icon])=>`<button data-page="${id}" onclick="showPage('${id}')">${icon}&nbsp;&nbsp;${label}</button>`).join('')+`<button onclick="goHome()">←&nbsp;&nbsp;Landing page</button>`}
-function showPage(id){state.page=id;persist();document.querySelectorAll('.side-nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===id));({dashboard,jobs,applications,profile}[id]||dashboard)();if((id==='dashboard'||id==='jobs')&&!jobsLoaded)loadLiveJobs()}
+function showPage(id){internActiveView=id;state.page=id;persist();document.querySelectorAll('.side-nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===id));({dashboard,jobs,applications,profile}[id]||dashboard)();if((id==='dashboard'||id==='jobs')&&!jobsLoaded)loadLiveJobs()}
 
 const internDiagnostics=[];
 function recordDiagnostic(code){const allowed=['local_save_failed','cloud_read_failed','cloud_write_failed','feed_partial','script_error','unhandled_rejection'];if(!allowed.includes(code))return;internDiagnostics.push({code,at:new Date().toISOString()});if(internDiagnostics.length>30)internDiagnostics.shift()}

@@ -31,6 +31,6 @@ loadLiveJobs=function(force=false){
   jobsData=[...(state.importedJobs||[]),...(live.length?live:seedJobs)];
   feedStatus={checkedAt:new Date().toISOString(),loading:false,sources:results.map(({jobs,...status})=>({...status,count:jobs.length}))};
   if(results.some(r=>!r.ok||r.partial))recordDiagnostic('feed_partial');jobsLoaded=true;
- })().finally(()=>{jobsLoading=false;feedStatus.loading=false;internFeedPromise=null;if(state.page==='jobs')jobs();else if(state.page==='dashboard')dashboard()});
+ })().finally(()=>{jobsLoading=false;feedStatus.loading=false;internFeedPromise=null;if(internActiveView==='jobs')jobs();else if(internActiveView==='dashboard')dashboard()});
  return internFeedPromise;
 };

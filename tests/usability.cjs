@@ -21,3 +21,5 @@ test('tailored output excludes internal review instructions while notes retain p
 
 test('diagnostics exclude source errors, profile fields, and resume text',()=>{const r=runtime();r.run("state.profile.name='Private Name';state.profile.resumeText='PRIVATE RESUME';recordDiagnostic('script_error');recordDiagnostic('PRIVATE RESUME')");const text=r.run('diagnosticsText()');assert.ok(text.includes('script_error'));assert.ok(!text.includes('Private Name'));assert.ok(!text.includes('PRIVATE RESUME'))});
 test('browser entry point and VM harness use the same script dependency order',()=>{const fs=require('node:fs'),html=fs.readFileSync('index.html','utf8'),actual=[...html.matchAll(/<script src="(js\/[^\"]+)"/g)].map(m=>m[1]);assert.deepEqual(actual,JSON.parse(fs.readFileSync('tests/script-order.json','utf8')))});
+
+test('background feed completion does not replace an in-progress import or draft',async()=>{const r=runtime();r.run("internActiveView='importJob';jobs=dashboard=()=>{throw Error('Unexpected navigation')}");r.ctx.fetch=async()=>({ok:true,json:async()=>({jobs:[]})});await r.run('loadLiveJobs(true)');assert.equal(r.run('internActiveView'),'importJob')});
