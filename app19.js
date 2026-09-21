@@ -33,7 +33,7 @@ function adoptInternUser(user){
 async function cloudPull(){
  if(!internUser||internHydrating)return;
  const id=internUser.id,epoch=internEpoch,revision=internRevision;
- internHydrating=true;internCloudReady=false;
+ internHydrating=true;internCloudReady=false;renderAccountControls();
  try{
   const [{data:p,error:pe},{data:s,error:se}]=await Promise.all([
    internSupabase.from('profiles').select('*').eq('user_id',id).maybeSingle(),
@@ -53,7 +53,7 @@ async function cloudPull(){
   }else if(owner&&owner!==id){state=structuredClone(defaultState)}
   internWorkspaceOwner=id;localStorage.setItem(INTERN_OWNER_KEY,id);
   localStorage.setItem('internai-demo',JSON.stringify(state));
-  internCloudReady=true;internHydrating=false;
+  internCloudReady=true;internHydrating=false;renderAccountControls();
   if((!cloudHasData&&!(owner===id&&p&&s))||pending)await cloudPush();
   if(currentSession(id,epoch)){jobsData=jobsData.filter(j=>!j.imported);jobsData=[...(state.importedJobs||[]),...jobsData];renderCloudWorkspace()}
  }catch(e){if(currentSession(id,epoch)){console.warn('InternAI cloud restore failed; local state preserved.');toast('Cloud restore unavailable. Local changes are safe; reload to retry.')}}
@@ -63,14 +63,14 @@ async function cloudPush(){
  if(!internUser||!internCloudReady||internHydrating||internPushActive)return;
  const id=internUser.id,epoch=internEpoch,revision=internRevision;
  if(localStorage.getItem(INTERN_OWNER_KEY)!==id)return;
- internPushActive=true;
+ internPushActive=true;renderAccountControls();
  try{
   const p=profileRow(state.profile),s={user_id:id,saved:structuredClone(state.saved||[]),applications:structuredClone(state.apps||[]),updated_at:new Date().toISOString()};
   const [{error:pe},{error:se}]=await Promise.all([internSupabase.from('profiles').upsert(p),internSupabase.from('user_state').upsert(s)]);
   if(pe)throw pe;if(se)throw se;
-  if(currentSession(id,epoch)&&revision===internRevision)localStorage.removeItem(INTERN_PENDING_KEY+':'+id);
- }catch(e){if(currentSession(id,epoch)){localStorage.setItem(INTERN_PENDING_KEY+':'+id,'true');console.warn('InternAI cloud sync failed; local state preserved.');toast('Cloud sync failed. Changes are saved in this browser.')}}
- finally{if(currentSession(id,epoch)){internPushActive=false;if(revision!==internRevision){clearTimeout(internSyncTimer);internSyncTimer=setTimeout(cloudPush,350)}}}
+  if(currentSession(id,epoch)&&revision===internRevision){localStorage.removeItem(INTERN_PENDING_KEY+':'+id);renderAccountControls()}
+ }catch(e){if(currentSession(id,epoch)){localStorage.setItem(INTERN_PENDING_KEY+':'+id,'true');renderAccountControls();console.warn('InternAI cloud sync failed; local state preserved.');toast('Cloud sync failed. Changes are saved in this browser.')}}
+ finally{if(currentSession(id,epoch)){internPushActive=false;renderAccountControls();if(revision!==internRevision){clearTimeout(internSyncTimer);internSyncTimer=setTimeout(cloudPush,350)}}}
 }
 function workspaceData(value){const {page,...data}=value;return JSON.stringify(data)}
 const localPersist=persist;persist=function(){
@@ -79,7 +79,7 @@ const localPersist=persist;persist=function(){
  if((internUser&&owner&&owner!==internUser.id)||(!internUser&&owner))return;
  const changed=workspaceData(load())!==workspaceData(state);
  localPersist();if(!changed)return;internRevision++;
- if(internUser){localStorage.setItem(INTERN_PENDING_KEY+':'+internUser.id,'true');clearTimeout(internSyncTimer);internSyncTimer=setTimeout(cloudPush,350)}
+ if(internUser){localStorage.setItem(INTERN_PENDING_KEY+':'+internUser.id,'true');renderAccountControls();clearTimeout(internSyncTimer);internSyncTimer=setTimeout(cloudPush,350)}
 };
 async function internSignIn(email,password){if(!internSupabase)return toast('Cloud account service is still loading');const {error}=await internSupabase.auth.signInWithPassword({email,password});if(error)return toast(error.message);toast('Signed in — syncing your workspace')}
 async function internSignUp(email,password){if(!internSupabase)return toast('Cloud account service is still loading');const {error}=await internSupabase.auth.signUp({email,password});if(error)return toast(error.message);toast('Account created — check your email if confirmation is required')}
@@ -103,7 +103,8 @@ function accountDialog(){
  });
  document.body.appendChild(dialog);dialog.showModal();
 }
-function renderAccountControls(){const bar=document.querySelector('.appbar .row');if(!bar)return;let box=document.getElementById('account-controls');if(!box){box=document.createElement('span');box.id='account-controls';bar.prepend(box)}box.innerHTML=accountControls()}
+function syncLabel(){if(!internUser)return'';if(internHydrating)return' · Restoring…';if(internPushActive||localStorage.getItem(INTERN_PENDING_KEY+':'+internUser.id)==='true')return' · Sync pending';return internCloudReady?' · Synced':' · Local only'}
+function renderAccountControls(){const bar=document.querySelector('.appbar .row');if(!bar)return;let box=document.getElementById('account-controls');if(!box){box=document.createElement('span');box.id='account-controls';bar.prepend(box)}box.innerHTML=internUser?'<div class="row"><span style="font-size:11px;color:#64706a">'+esc(internUser.email||'Signed in')+esc(syncLabel())+'</span><button class="btn outline small" onclick="internSignOut()">Sign out</button></div>':accountControls()}
 async function initInternCloud(){
  if(!supabaseReady())return;
  internSupabase=window.supabase.createClient(INTERN_SUPABASE_URL,INTERN_SUPABASE_KEY);
