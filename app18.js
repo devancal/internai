@@ -13,3 +13,8 @@ window.internAIMatchRegression=runMatchRegressionV2;
 const matchRegressionV2=runMatchRegressionV2();
 window.internAIMatchRegressionResult=matchRegressionV2;
 if(!matchRegressionV2.passed)console.error('InternAI Match Regression v2 failed',matchRegressionV2);else console.info('InternAI Match Regression v2 passed',matchRegressionV2);
+
+// Run legacy calibration only after all matching overrides are installed.
+const matchCalibration=runMatchCalibration();
+window.internAIMatchCalibrationResult=matchCalibration;
+if(!matchCalibration.passed)console.warn('InternAI match calibration guardrail failed',matchCalibration);

@@ -28,7 +28,7 @@ node --test tests/accounts.cjs tests/ingestion.cjs tests/matching.cjs tests/work
 node tests/runtime.cjs
 ```
 
-These tests execute the existing scripts in a Node VM with minimal DOM stubs and controlled auth/network responses. They cover matching, source-claim integrity, account transitions and sync failures, application persistence, URL validation, PDF line ordering, feed fallback, concurrency, and health reporting. They do not replace browser or production integration tests.
+These tests execute the existing scripts in a Node VM with minimal DOM stubs and controlled auth/network responses. They cover matching, source-claim integrity, account transitions and sync failures, application persistence, URL validation, PDF line ordering, structured employer requirements, degree alternatives, password-recovery callbacks, state migration, status history, sample labeling, feed fallback, concurrency, and health reporting. They do not replace browser or production integration tests.
 
 The eight-case matching regression in `app18.js` also runs on page load. Inspect its actual result before reporting a pass.
 
