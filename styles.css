@@ -13,3 +13,9 @@ body{font-size:15px;line-height:1.5}.hero{background:radial-gradient(circle at 8
 /* Keep account and sync controls available on phones and tablets. */
 @media(max-width:900px){.appbar{display:flex;height:auto;min-height:64px;flex-wrap:wrap;gap:10px;padding:12px 16px}.appbar>span{display:none}.appbar>.row{width:100%;flex-wrap:wrap}.appbar #account-controls{margin-right:auto;min-width:0}.appbar #account-controls .row{flex-wrap:wrap}.appbar #account-controls span{overflow-wrap:anywhere}}
 @media(prefers-reduced-motion:reduce){.page{animation:none}.kit-item{transition:none}}
+
+/* Let the landing-page steps reflow instead of widening mobile viewports. */
+.feature-grid.how-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.feature-grid> .feature{min-width:0;overflow-wrap:anywhere}
+@media(max-width:900px){.feature-grid.how-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.feature-grid.how-grid{grid-template-columns:minmax(0,1fr)}}
