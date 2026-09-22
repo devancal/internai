@@ -17,5 +17,6 @@
   "js/material-provenance.js",
   "js/match-eligibility.js",
   "js/match-regression.js",
+  "js/workspace-recovery.js",
   "js/account-sync.js"
 ]

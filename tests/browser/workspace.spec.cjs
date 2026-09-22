@@ -31,3 +31,11 @@ test('cloud conflict keeps local edits and requires backup before restoring clou
  const download=page.waitForEvent('download');await dialog.getByRole('button',{name:'Download local backup',exact:true}).click();expect((await download).suggestedFilename()).toBe('internai-workspace-backup.json');
  await dialog.getByRole('button',{name:'Load cloud version',exact:true}).click();await expect(page.locator('#pname')).toHaveValue('Cloud version');await expect(page.locator('#account-controls')).toContainText('Synced');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+test('backup restore previews replacement and keeps notes after reload',async({page})=>{
+ await openWorkspace(page);await page.locator('[data-page="profile"]').click();await page.locator('#pname').fill('Current profile');
+ const backup={format:'internai-workspace',workspace:{version:2,profile:{name:'Recovered profile',skills:['CAD'],resumeText:''},saved:[],apps:[{id:'recovered-app',company:'Recovery employer',title:'Recovered internship',status:'Applied',notes:'Preserved application notes',draft:'Reviewed cover letter'}]}};
+ await page.locator('#workspaceBackupFile').setInputFiles({name:'workspace.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});
+ const dialog=page.locator('#intern-backup-dialog');await expect(dialog).toBeVisible();await expect(dialog).toContainText('1 applications');await expect(dialog.getByRole('button',{name:'Replace with backup',exact:true})).toBeDisabled();await expect(page.locator('#pname')).toHaveValue('Current profile');
+ const downloaded=page.waitForEvent('download');await dialog.getByRole('button',{name:'Download current workspace',exact:true}).click();expect((await downloaded).suggestedFilename()).toBe('internai-workspace-backup.json');await dialog.getByRole('button',{name:'Replace with backup',exact:true}).click();await expect(page.locator('#pname')).toHaveValue('Recovered profile');
+ await page.reload();await page.getByRole('button',{name:'Start free →',exact:true}).click();await page.locator('[data-page="applications"]').click();await page.getByRole('button',{name:'Open',exact:true}).click();await expect(page.locator('#anotes')).toHaveValue('Preserved application notes');await expect(page.locator('#adraft')).toHaveValue('Reviewed cover letter');
+});

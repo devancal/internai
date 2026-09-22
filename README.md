@@ -59,7 +59,7 @@ Browser scripts live in `js/` and use descriptive names. `index.html` preserves 
 - Skill detection uses word boundaries. Required, preferred, and responsibility headings are distinguished. Accreditation, clearance, and experience-duration requirements require review rather than being inferred from a matching major.
 - Application material edits save on input. Copy uses current editor contents and reports failure. Plain-text downloads do not preserve PDF formatting. Resetting a tailored draft asks before replacing edits.
 - A stale tab pauses saving/cloud writes instead of overwriting another tab. Export the in-memory workspace before reloading when this happens. Network reconnection retries sync. Browser-storage failures are displayed explicitly.
-- Profile offers a JSON backup download and a diagnostic summary with fixed event codes and feed status. Diagnostics stay in memory until the user copies them; there is no external monitoring vendor or remote alerting. Backup import/merge and automatic conflict merging are not implemented.
+- Profile offers a JSON backup download and a diagnostic summary with fixed event codes and feed status. Diagnostics stay in memory until the user copies them; there is no external monitoring vendor or remote alerting. Profile also accepts downloaded JSON backups up to 5 MB, validates supported fields, previews replacement, and requires downloading the current workspace before restoring. Restore rebuilds derived evidence from resume text and retains a browser-local pre-restore copy. Account changes, active sync, conflicts, stale tabs, and edits after preview block restoration. Automatic merging is not implemented.
 
 ## Browser regression checks
 
