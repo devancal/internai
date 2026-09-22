@@ -36,7 +36,7 @@ The eight-case matching regression in `js/match-regression.js` also runs on page
 
 The active workspace remains in `internai-demo`. `internai-local-owner` binds it to an account. Account switches preserve a local recovery copy under `internai-workspace:<user-id>` and clear the previous account from the active UI. Pending cloud writes are marked per account and retried after a successful cloud read; failed reads cannot trigger uploads over unknown cloud state. Anonymous work replaced by an existing cloud workspace is retained as `internai-workspace:anonymous`.
 
-Recovery copies are browser-local, not encrypted backups. No password or service-role key is stored by this bridge. Clearing browser storage removes these copies. Simultaneous edits across devices do not have a conflict-resolution UI; unsynced local changes on the same account take precedence on recovery.
+Recovery copies are browser-local, not encrypted backups. No password or service-role key is stored by this bridge. Clearing browser storage removes these copies. Updated clients save profile and application state atomically through `save_intern_workspace`. Server timestamps act as optimistic concurrency tokens. A stale device pauses cloud writes and keeps its local edits. Resolve sync conflict offers a local backup before explicitly loading the cloud copy; it does not merge versions. Pending legacy work without a known baseline also pauses conservatively. Reload older open tabs to adopt this protocol: legacy clients still have direct-table write access and cannot themselves enforce conflicts.
 
 ## Deployment and release gate
 
@@ -59,7 +59,7 @@ Browser scripts live in `js/` and use descriptive names. `index.html` preserves 
 - Skill detection uses word boundaries. Required, preferred, and responsibility headings are distinguished. Accreditation, clearance, and experience-duration requirements require review rather than being inferred from a matching major.
 - Application material edits save on input. Copy uses current editor contents and reports failure. Plain-text downloads do not preserve PDF formatting. Resetting a tailored draft asks before replacing edits.
 - A stale tab pauses saving/cloud writes instead of overwriting another tab. Export the in-memory workspace before reloading when this happens. Network reconnection retries sync. Browser-storage failures are displayed explicitly.
-- Profile offers a JSON backup download and a diagnostic summary with fixed event codes and feed status. Diagnostics stay in memory until the user copies them; there is no external monitoring vendor or remote alerting. Backup import/merge and cross-device conflict resolution are not implemented.
+- Profile offers a JSON backup download and a diagnostic summary with fixed event codes and feed status. Diagnostics stay in memory until the user copies them; there is no external monitoring vendor or remote alerting. Backup import/merge and automatic conflict merging are not implemented.
 
 ## Browser regression checks
 
@@ -74,3 +74,7 @@ CI runs the workflow on desktop and 390px mobile Chromium. External services are
 ## Next human usability check
 
 Invite 3–5 consenting testers yourself; no invitations are sent by the application. Ask each to: create an account, upload their own resume, correct one extracted fact, review a job match, prepare and download a draft, open the employer listing, record an application, and return after reload. Observe without guiding them. Record where they hesitate or need help, whether the match explanation is understandable, and whether they trust the prepared text. Do not collect passwords or unneeded resume copies. Real participants and their feedback cannot be replaced by automated checks.
+
+## Database sync verification
+
+The SQL source is in `supabase/migrations/*_workspace_atomic_sync.sql`. Deploy the function and timestamp triggers before the corresponding client; failed RPC calls preserve local edits. `tests/workspace-sync.sql` verifies successful saves, advancing versions, stale rejection, owner binding, and anonymous permissions in a transaction that rolls back every synthetic row. It requires an administrative SQL connection and must not be appended to a production migration. Existing RLS remains enabled; the save function uses security invoker and derives ownership from `auth.uid()`.

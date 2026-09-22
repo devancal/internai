@@ -4,6 +4,9 @@ const INTERN_AUTH_REDIRECT_URL='https://internai-mvp-fixed-devancalabrese-2065.v
 const INTERN_SUPABASE_URL='https://hoodrasmrhdzkjhmrorq.supabase.co';
 const INTERN_SUPABASE_KEY='sb_publishable_m6WNadKQPbivmJORFEageA_qKioCJiV';
 let internSupabase=null,internUser=null,internSyncTimer=null,internHydrating=false,internEpoch=0,internCloudReady=false,internPushActive=false,internRevision=0;
+let internCloudVersion=null,internCloudConflict=false;
+const cloudVersionKey=id=>'internai-cloud-version:'+id;
+function pauseCloudConflict(){internCloudConflict=true;internCloudReady=false;renderAccountControls();toast('Newer cloud changes found. Your local work is preserved. Back up this device before loading the cloud version.')}
 const INTERN_OWNER_KEY='internai-local-owner';
 let internWorkspaceOwner=localStorage.getItem(INTERN_OWNER_KEY);
 let internLastStored=localStorage.getItem('internai-demo'),internTabStale=false,internLocalSaveFailed=false;
@@ -23,7 +26,7 @@ function renderCloudWorkspace(){if(!document.getElementById('workspace').classLi
 function adoptInternUser(user){
  const id=user?.id||null;
  if(id===(internUser?.id||null)&&!(id===null&&localStorage.getItem(INTERN_OWNER_KEY))){internUser=user;return false}
- clearTimeout(internSyncTimer);internEpoch++;internCloudReady=false;internHydrating=false;internPushActive=false;
+ clearTimeout(internSyncTimer);internEpoch++;internCloudVersion=null;internCloudConflict=false;internCloudReady=false;internHydrating=false;internPushActive=false;
  const owner=internWorkspaceOwner;
  if(owner)localStorage.setItem(recoveryKey(owner),JSON.stringify(state));
  internUser=user;
@@ -37,7 +40,7 @@ function adoptInternUser(user){
  markWorkspaceBaseline();jobsData=jobsData.filter(j=>!j.imported);jobsData=[...(state.importedJobs||[]),...jobsData];renderAccountControls();renderCloudWorkspace();return true;
 }
 async function cloudPull(){
- if(!internUser||internHydrating)return;
+ if(!internUser||internHydrating||internCloudConflict)return;
  const id=internUser.id,epoch=internEpoch,revision=internRevision;
  internHydrating=true;internCloudReady=false;renderAccountControls();
  try{
@@ -53,6 +56,13 @@ async function cloudPull(){
   const pending=owner===id&&localStorage.getItem(INTERN_PENDING_KEY+':'+id)==='true';
   // Do not silently overwrite edits made while the initial read was in flight.
   if(revision!==internRevision){toast('Cloud restore paused: local edits preserved. Reload to retry.');return}
+  const remoteVersion={profile:p?.updated_at||null,state:s?.updated_at||null};
+  // Pending edits keep the last acknowledged baseline across reloads/offline sessions.
+  // Unknown legacy baselines cannot safely authorize overwriting an existing cloud row.
+  const storedVersion=localStorage.getItem(cloudVersionKey(id));
+  if(pending&&((storedVersion&&storedVersion!==JSON.stringify(remoteVersion))||(!storedVersion&&(p||s)))){pauseCloudConflict();return}
+  internCloudVersion=remoteVersion;
+  localStorage.setItem(cloudVersionKey(id),JSON.stringify(remoteVersion));
   if((cloudHasData||(owner===id&&p&&s))&&!pending){
    if(!owner)localStorage.setItem(recoveryKey('anonymous'),JSON.stringify(local));
    state=migrateState({...structuredClone(defaultState),page:local.page,profile:cloudProfile,saved:s?.saved||[],apps:s?.applications||[],importedJobs:[...new Map([...(owner===id?local.importedJobs||[]:[]),...(s?.applications||[]).map(a=>a.jobSnapshot).filter(j=>j?.imported)].map(j=>[j.id,j])).values()]});
@@ -66,16 +76,22 @@ async function cloudPull(){
  finally{if(currentSession(id,epoch)){internHydrating=false;renderAccountControls()}}
 }
 async function cloudPush(){
- if(!internUser||!internCloudReady||internHydrating||internPushActive)return;
+ if(!internUser||!internCloudReady||!internCloudVersion||internCloudConflict||internHydrating||internPushActive)return;
  const id=internUser.id,epoch=internEpoch,revision=internRevision;
  if(localStorage.getItem(INTERN_OWNER_KEY)!==id||!checkWorkspaceBaseline())return;
  internPushActive=true;renderAccountControls();
  try{
-  const p=profileRow(state.profile),s={user_id:id,saved:structuredClone(state.saved||[]),applications:structuredClone(state.apps||[]),updated_at:new Date().toISOString()};
-  const [{error:pe},{error:se}]=await Promise.all([internSupabase.from('profiles').upsert(p),internSupabase.from('user_state').upsert(s)]);
-  if(pe)throw pe;if(se)throw se;
+  const {data,error}=await internSupabase.rpc('save_intern_workspace',{
+   profile_data:profileRow(state.profile),saved_data:structuredClone(state.saved||[]),applications_data:structuredClone(state.apps||[]),
+   expected_profile:internCloudVersion.profile,expected_state:internCloudVersion.state
+  });
+  if(error)throw error;
+  if(!currentSession(id,epoch))return;
+  if(!data||!data.profile||!data.state)throw new Error('Missing cloud version');
+  internCloudVersion={profile:data.profile,state:data.state};
+  localStorage.setItem(cloudVersionKey(id),JSON.stringify(internCloudVersion));
   if(currentSession(id,epoch)&&revision===internRevision){localStorage.removeItem(INTERN_PENDING_KEY+':'+id);renderAccountControls()}
- }catch(e){if(currentSession(id,epoch)){localStorage.setItem(INTERN_PENDING_KEY+':'+id,'true');renderAccountControls();recordDiagnostic('cloud_write_failed');console.warn('InternAI cloud sync failed; local state preserved.');toast('Cloud sync failed. Changes are saved in this browser.')}}
+ }catch(e){if(currentSession(id,epoch)){localStorage.setItem(INTERN_PENDING_KEY+':'+id,'true');if(e?.code==='PT409'){pauseCloudConflict();return}renderAccountControls();recordDiagnostic('cloud_write_failed');console.warn('InternAI cloud sync failed; local state preserved.');toast('Cloud sync failed. Changes are saved in this browser.')}}
  finally{if(currentSession(id,epoch)){internPushActive=false;renderAccountControls();if(revision!==internRevision){clearTimeout(internSyncTimer);internSyncTimer=setTimeout(cloudPush,350)}}}
 }
 function workspaceData(value){const {page,...data}=value;return JSON.stringify(data)}
@@ -130,8 +146,8 @@ function accountDialog(){
  });
  document.body.appendChild(dialog);dialog.showModal();
 }
-function syncLabel(){if(internLocalSaveFailed)return' · Not saved — download backup';if(internTabStale)return' · Other tab changed workspace';if(!internUser)return'';if(internHydrating)return' · Restoring…';if(internPushActive||localStorage.getItem(INTERN_PENDING_KEY+':'+internUser.id)==='true')return' · Sync pending';return internCloudReady?' · Synced':' · Local only'}
-function renderAccountControls(){const bar=document.querySelector('.appbar .row');if(!bar)return;let box=document.getElementById('account-controls');if(!box){box=document.createElement('span');box.id='account-controls';bar.prepend(box)}box.innerHTML=internUser?'<div class="row"><span style="font-size:11px;color:#64706a">'+esc(internUser.email||'Signed in')+esc(syncLabel())+'</span><button class="btn outline small" onclick="retryInternSync()">Retry sync</button><button class="btn outline small" onclick="internSignOut()">Sign out</button></div>':accountControls()}
+function syncLabel(){if(internLocalSaveFailed)return' · Not saved — download backup';if(internTabStale)return' · Other tab changed workspace';if(!internUser)return'';if(internCloudConflict)return' · Cloud conflict — local work preserved';if(internHydrating)return' · Restoring…';if(internPushActive||localStorage.getItem(INTERN_PENDING_KEY+':'+internUser.id)==='true')return' · Sync pending';return internCloudReady?' · Synced':' · Local only'}
+function renderAccountControls(){const bar=document.querySelector('.appbar .row');if(!bar)return;let box=document.getElementById('account-controls');if(!box){box=document.createElement('span');box.id='account-controls';bar.prepend(box)}box.innerHTML=internUser?'<div class="row"><span style="font-size:11px;color:#64706a">'+esc(internUser.email||'Signed in')+esc(syncLabel())+'</span><button class="btn outline small" onclick="retryInternSync()">'+(internCloudConflict?'Resolve sync conflict':'Retry sync')+'</button><button class="btn outline small" onclick="internSignOut()">Sign out</button></div>':accountControls()}
 async function initInternCloud(){
  if(!supabaseReady())return;
  internSupabase=window.supabase.createClient(INTERN_SUPABASE_URL,INTERN_SUPABASE_KEY);
@@ -150,8 +166,26 @@ async function initInternCloud(){
 }
 window.addEventListener('DOMContentLoaded',initInternCloud);
 
-async function retryInternSync(){if(!internUser||internTabStale)return;if(internCloudReady)await cloudPush();else await cloudPull()}
-window.addEventListener('online',()=>{retryInternSync()});
+async function retryInternSync(){if(!internUser||internTabStale)return;if(internCloudConflict){resolveInternConflict();return;}if(internCloudReady)await cloudPush();else await cloudPull()}
+window.addEventListener('online',()=>{if(!internCloudConflict)retryInternSync()});
 window.addEventListener('storage',event=>{if(event.key==='internai-demo'||event.key===INTERN_OWNER_KEY){if(!checkWorkspaceBaseline())toast('Workspace changed in another tab. Download your backup before reloading.')}});
 
 window.addEventListener('DOMContentLoaded',()=>{if(location.hash==='#app')openApp()});
+
+function resolveInternConflict(){
+ if(!internCloudConflict||document.getElementById('intern-conflict-dialog'))return;
+ const dialog=document.createElement('dialog');dialog.id='intern-conflict-dialog';
+ const id=internUser.id,epoch=internEpoch;
+ dialog.style.cssText='border:1px solid #d7e1d9;border-radius:16px;padding:24px;width:min(440px,calc(100vw - 40px))';
+ dialog.innerHTML='<h2>Keep both versions safe</h2><p>Another device has newer cloud changes. This device’s edits are still saved locally.</p><p>Download this device’s backup first. Loading the cloud version replaces the active workspace; your local copy also stays in browser recovery storage.</p><div class="row" style="flex-wrap:wrap"><button class="btn outline" data-backup>Download local backup</button><button class="btn dark" data-load disabled>Load cloud version</button><button class="btn outline" data-cancel>Keep working locally</button></div>';
+ dialog.addEventListener('close',()=>dialog.remove());
+ dialog.querySelector('[data-cancel]').onclick=()=>dialog.close();
+ dialog.querySelector('[data-backup]').onclick=()=>{exportWorkspaceBackup();dialog.querySelector('[data-load]').disabled=false};
+ dialog.querySelector('[data-load]').onclick=async()=>{
+  if(!currentSession(id,epoch)){dialog.close();return}
+  if(!checkWorkspaceBaseline())return;
+  try{localStorage.setItem(recoveryKey(id)+':conflict',JSON.stringify(state))}catch{toast('Backup storage is unavailable. Keep your downloaded backup before retrying.');return}
+  localStorage.removeItem(INTERN_PENDING_KEY+':'+id);internCloudConflict=false;dialog.close();await cloudPull();
+ };
+ document.body.appendChild(dialog);dialog.showModal();
+}
