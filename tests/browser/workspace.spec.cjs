@@ -16,3 +16,9 @@ test('import, edit, download, track, reload keeps user materials',async({page})=
  await page.reload();await page.getByRole('button',{name:'Start free →',exact:true}).click();await page.locator('[data-page="applications"]').click();await page.getByRole('button',{name:'Open',exact:true}).click();await expect(page.locator('#tailoredResumeDraft')).toHaveValue('QA reviewed source material');
 });
 test('workspace deep link starts after all scripts load',async({page})=>{const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/#app');await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();expect(errors).toEqual([])});
+test('listing verification displays removal without erasing application work',async({page})=>{
+ await page.route('**/api/listing-status?*',route=>route.fulfill({json:{status:'unavailable',checkedAt:new Date().toISOString()}}));
+ await openWorkspace(page);await page.locator('[data-page="jobs"]').click();await expect(page.getByText(/Last refresh:/)).toBeVisible();
+ await page.getByRole('button',{name:'Add a job you found',exact:true}).click();await page.locator('#importUrl').fill('https://job-boards.greenhouse.io/example/jobs/123');await page.locator('#importTitle').fill('QA Intern');await page.locator('#importCompany').fill('QA Company');await page.getByRole('button',{name:'Analyze & create workspace →',exact:true}).click();
+ await page.getByRole('button',{name:'← Match details',exact:true}).click();await page.getByRole('button',{name:'Check availability',exact:true}).click();await expect(page.getByText('Posting unavailable:',{exact:true})).toBeVisible();await expect(page.getByRole('link',{name:'Employer listing ↗',exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'Open Application Workspace →',exact:true})).toBeVisible();
+});
