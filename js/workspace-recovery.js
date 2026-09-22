@@ -31,6 +31,7 @@ function decodeWorkspaceBackup(text){
  next.apps=w.apps.map(v=>{
   if(!object(v))fail();const out={id:id(v.id)};
   for(const key of ['company','title','date','createdAt','notes','draft','resumeNotes','tailoredResume','answers','submittedAt','interviewAt','offerAt','rejectedAt'])out[key]=str(v[key]);
+  out.editedMaterials=strings(v.editedMaterials);if(out.editedMaterials.some(key=>!['draft','tailoredResume','answers'].includes(key)))fail();
   out.status=str(v.status,'Interested');if(!statuses.includes(out.status))fail();
   if(v.jobId)out.jobId=id(v.jobId);
   if(v.jobSnapshot){out.jobSnapshot=job(v.jobSnapshot);if(out.jobId!==out.jobSnapshot.id)fail()}
