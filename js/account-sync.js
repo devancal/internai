@@ -26,6 +26,7 @@ function renderCloudWorkspace(){if(!document.getElementById('workspace').classLi
 function adoptInternUser(user){
  const id=user?.id||null;
  if(id===(internUser?.id||null)&&!(id===null&&localStorage.getItem(INTERN_OWNER_KEY))){internUser=user;return false}
+ if(internDownloadCleanup)internDownloadCleanup();
  clearTimeout(internSyncTimer);internEpoch++;internCloudVersion=null;internCloudConflict=false;internCloudReady=false;internHydrating=false;internPushActive=false;
  const owner=internWorkspaceOwner;
  if(owner)localStorage.setItem(recoveryKey(owner),JSON.stringify(state));
@@ -180,7 +181,7 @@ function resolveInternConflict(){
  dialog.innerHTML='<h2>Keep both versions safe</h2><p>Another device has newer cloud changes. This device’s edits are still saved locally.</p><p>Download this device’s backup first. Loading the cloud version replaces the active workspace; your local copy also stays in browser recovery storage.</p><div class="row" style="flex-wrap:wrap"><button class="btn outline" data-backup>Download local backup</button><button class="btn dark" data-load disabled>Load cloud version</button><button class="btn outline" data-cancel>Keep working locally</button></div>';
  dialog.addEventListener('close',()=>dialog.remove());
  dialog.querySelector('[data-cancel]').onclick=()=>dialog.close();
- dialog.querySelector('[data-backup]').onclick=()=>{exportWorkspaceBackup();dialog.querySelector('[data-load]').disabled=false};
+ dialog.querySelector('[data-backup]').onclick=()=>{if(exportWorkspaceBackup()!==false)dialog.querySelector('[data-load]').disabled=false};
  dialog.querySelector('[data-load]').onclick=async()=>{
   if(!currentSession(id,epoch)){dialog.close();return}
   if(!checkWorkspaceBaseline())return;

@@ -24,7 +24,7 @@ This repository is intended to be connected to Vercel. Changes merged to the dep
 Use Node 22+ and run:
 
 ```sh
-node --test tests/accounts.cjs tests/ingestion.cjs tests/matching.cjs tests/workflows.cjs
+node --test tests/*.cjs
 node tests/runtime.cjs
 ```
 
@@ -58,9 +58,9 @@ Browser scripts live in `js/` and use descriptive names. `index.html` preserves 
 - Wrapped resume bullets are joined without changing their words. Graph version 3 rebuilds older evidence. The Profile page allows correcting extracted text and rebuilding evidence; profile fields still need manual review. Multi-column/scanned PDFs remain a limitation.
 - Skill detection uses word boundaries. Required, preferred, and responsibility headings are distinguished. Accreditation, clearance, and experience-duration requirements require review rather than being inferred from a matching major.
 - Tracking & notes is reachable from each application workspace. Notes, tracking drafts, and status changes save immediately; the tracking screen displays timestamped status history. Regeneration asks before replacing a draft, and intentionally cleared materials stay empty when reopened or restored from backup.
-- Application material edits save on input. Copy uses current editor contents and reports failure. Plain-text downloads do not preserve PDF formatting. Resetting a tailored draft asks before replacing edits.
+- Application material edits save on input. Copy uses current editor contents and reports failure. Downloads attach a real link before requesting a save and retain an accessible retry/copy panel. Blob failures offer manual copy if the clipboard is also unavailable. “Download requested” does not claim the browser saved a file; verify the file before replacing a workspace. Plain-text downloads do not preserve PDF formatting. Resetting a tailored draft asks before replacing edits.
 - A stale tab pauses saving/cloud writes instead of overwriting another tab. Export the in-memory workspace before reloading when this happens. Network reconnection retries sync. Browser-storage failures are displayed explicitly.
-- Profile offers a JSON backup download and a diagnostic summary with fixed event codes and feed status. Diagnostics stay in memory until the user copies them; there is no external monitoring vendor or remote alerting. Profile also accepts downloaded JSON backups up to 5 MB, validates supported fields, previews replacement, and requires downloading the current workspace before restoring. Restore rebuilds derived evidence from resume text and retains a browser-local pre-restore copy. Account changes, active sync, conflicts, stale tabs, and edits after preview block restoration. Automatic merging is not implemented.
+- Profile offers a JSON backup download and a diagnostic summary with fixed event codes and feed status. Diagnostics remain local by default. Profile offers an optional browser-local switch to send fixed error codes and app version to `/api/diagnostics`; no profile, resume, account ID, exception text, credentials, or referrer is sent by this code. Hosting infrastructure may retain ordinary request metadata. Reports are deduplicated per code per page session; the endpoint validates exact fields and origins and caps logs per function instance (not a distributed rate limiter). In Vercel runtime logs, filter for `internai_client_error`. There is no external monitoring vendor or automatic notification channel. Profile also accepts downloaded JSON backups up to 5 MB, validates supported fields, previews replacement, and requires downloading the current workspace before restoring. Restore rebuilds derived evidence from resume text and retains a browser-local pre-restore copy. Account changes, active sync, conflicts, stale tabs, and edits after preview block restoration. Automatic merging is not implemented.
 
 ## Browser regression checks
 

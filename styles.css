@@ -19,3 +19,5 @@ body{font-size:15px;line-height:1.5}.hero{background:radial-gradient(circle at 8
 .feature-grid> .feature{min-width:0;overflow-wrap:anywhere}
 @media(max-width:900px){.feature-grid.how-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.feature-grid.how-grid{grid-template-columns:minmax(0,1fr)}}
+
+.download-panel{position:fixed;bottom:16px;right:16px;width:min(440px,calc(100vw - 32px));max-height:50vh;overflow:auto;z-index:1000;background:#fff;color:#243229;border:1px solid #b7cbbd;border-radius:14px;padding:16px;box-shadow:0 8px 32px #0003;overflow-wrap:anywhere}.download-panel p{margin:0 0 12px}.download-panel .row{flex-wrap:wrap}.download-panel textarea{width:100%;height:120px;margin-top:12px}.download-panel [hidden]{display:none}

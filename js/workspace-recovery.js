@@ -84,7 +84,7 @@ async function previewWorkspaceBackup(file){
   dialog.innerHTML=`<h2>Restore workspace backup</h2><p>${esc(next.profile.name||'Unnamed profile')} · ${next.apps.length} applications · ${next.saved.length} saved roles</p><p>This replaces the profile, notes, drafts, and tracked applications in ${esc(account)}. Signed-in changes will sync to the cloud. Versions will not be merged.</p><p>Download your current workspace first so you can restore it later.</p><p data-error role="alert"></p><div class="row" style="flex-wrap:wrap"><button class="btn outline" data-backup>Download current workspace</button><button class="btn dark" data-restore disabled>Replace with backup</button><button class="btn outline" data-cancel>Cancel</button></div>`;
   dialog.addEventListener('close',()=>dialog.remove());
   dialog.querySelector('[data-cancel]').onclick=()=>dialog.close();
-  dialog.querySelector('[data-backup]').onclick=()=>{exportWorkspaceBackup();dialog.querySelector('[data-restore]').disabled=false};
+  dialog.querySelector('[data-backup]').onclick=()=>{if(exportWorkspaceBackup()!==false)dialog.querySelector('[data-restore]').disabled=false};
   dialog.querySelector('[data-restore]').onclick=()=>{try{restoreWorkspaceBackup(next,expectedProfile,expectedData,expectedSession);dialog.close();showPage('profile');toast('Backup restored. Review your profile and applications.')}catch(error){dialog.querySelector('[data-error]').textContent=error.message||'Restore failed. Your previous workspace is preserved.'}};
   document.body.appendChild(dialog);dialog.showModal();
  }catch(error){if(request===workspaceBackupRequest)toast(error.message||'Could not read the backup. Nothing was changed.')}

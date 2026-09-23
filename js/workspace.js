@@ -33,11 +33,37 @@ const pages=[['dashboard','Overview','▦'],['jobs','Discover','◎'],['applicat
 function renderNav(){document.getElementById('nav').innerHTML=pages.map(([id,label,icon])=>`<button data-page="${id}" onclick="showPage('${id}')">${icon}&nbsp;&nbsp;${label}</button>`).join('')+`<button onclick="goHome()">←&nbsp;&nbsp;Landing page</button>`}
 function showPage(id){internActiveView=id;state.page=id;persist();document.querySelectorAll('.side-nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===id));({dashboard,jobs,applications,profile}[id]||dashboard)();if((id==='dashboard'||id==='jobs')&&!jobsLoaded)loadLiveJobs()}
 
-const internDiagnostics=[];
-function recordDiagnostic(code){const allowed=['local_save_failed','cloud_read_failed','cloud_write_failed','feed_partial','script_error','unhandled_rejection'];if(!allowed.includes(code))return;internDiagnostics.push({code,at:new Date().toISOString()});if(internDiagnostics.length>30)internDiagnostics.shift()}
+const internDiagnostics=[],internReportedCodes=new Set();
+function diagnosticsSharingEnabled(){try{return localStorage.getItem('internai-share-diagnostics')==='true'}catch{return false}}
+function setDiagnosticsSharing(enabled){try{localStorage.setItem('internai-share-diagnostics',String(!!enabled))}catch{toast('Could not save this preference.')}}
+function sendDiagnostic(code){
+ if(!diagnosticsSharingEnabled()||location.protocol!=='https:'||internReportedCodes.has(code))return;
+ internReportedCodes.add(code);
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),4000);
+ try{Promise.resolve(fetch('/api/diagnostics',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'omit',referrerPolicy:'no-referrer',body:JSON.stringify({code,version:INTERN_STATE_VERSION}),signal:controller.signal})).catch(()=>{}).finally(()=>clearTimeout(timer))}catch{clearTimeout(timer)}
+}
+
+function recordDiagnostic(code){const allowed=['local_save_failed','cloud_read_failed','cloud_write_failed','feed_partial','script_error','unhandled_rejection','download_failed'];if(!allowed.includes(code))return;internDiagnostics.push({code,at:new Date().toISOString()});if(internDiagnostics.length>30)internDiagnostics.shift();sendDiagnostic(code)}
 function diagnosticsText(){return JSON.stringify({version:INTERN_STATE_VERSION,events:internDiagnostics,feeds:typeof feedStatus==='undefined'?null:feedStatus.sources.map(s=>({source:s.label,ok:s.ok,partial:s.partial,count:s.count})),sync:typeof syncLabel==='function'?syncLabel():''},null,2)}
 async function copyDiagnostics(){try{await navigator.clipboard.writeText(diagnosticsText());toast('Diagnostics copied. No profile or resume contents included.')}catch{toast('Could not copy diagnostics. Try again in a supported browser.')}}
-function exportWorkspaceBackup(){const blob=new Blob([JSON.stringify({format:'internai-workspace',exportedAt:new Date().toISOString(),workspace:state},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='internai-workspace-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+let internDownloadCleanup=null;
+function downloadTextFile(text,filename,mime='text/plain;charset=utf-8'){
+ if(internDownloadCleanup)internDownloadCleanup();
+ const panel=document.createElement('aside'),previousFocus=document.activeElement;
+ panel.id='intern-download';panel.className='download-panel';panel.setAttribute('aria-label','File download');
+ panel.innerHTML='<p role="status"></p><div class="row"><a class="btn outline">Download again</a><button type="button" class="btn outline">Copy contents</button><button type="button" class="btn outline">Close</button></div><textarea hidden readonly aria-label="File contents for manual copy"></textarea>';
+ const status=panel.querySelector('[role="status"]'),link=panel.querySelector('a'),buttons=panel.querySelectorAll('button'),manual=panel.querySelector('textarea');let url=null;
+ const cleanup=()=>{panel.remove();if(url){const old=url;setTimeout(()=>URL.revokeObjectURL(old),60000);url=null}if(internDownloadCleanup===cleanup)internDownloadCleanup=null};
+ internDownloadCleanup=cleanup;
+ const close=()=>{const focused=panel.contains(document.activeElement);cleanup();if(focused&&previousFocus?.isConnected)previousFocus.focus()};
+ buttons[1].onclick=close;panel.addEventListener('keydown',event=>{if(event.key==='Escape'){event.stopPropagation();close()}});
+ buttons[0].onclick=async()=>{try{await navigator.clipboard.writeText(text);status.textContent='Contents copied.'}catch{manual.hidden=false;manual.value=text;manual.focus();manual.select();status.textContent='Select and copy the contents below.'}};
+ const activeDialog=document.querySelector('dialog[open]');
+ if(activeDialog){panel.style.position='static';panel.style.width='100%';panel.style.marginTop='12px';activeDialog.appendChild(panel);activeDialog.addEventListener('close',cleanup,{once:true})}else document.body.appendChild(panel);
+ try{url=URL.createObjectURL(new Blob([text],{type:mime}));link.href=url;link.download=filename;status.textContent='Download requested. Check your downloads; if no file appears, try again or copy the contents.';link.click();return true}
+ catch{link.hidden=true;status.textContent='Could not start the download. Copy the contents instead.';recordDiagnostic('download_failed');return false}
+}
+function exportWorkspaceBackup(){return downloadTextFile(JSON.stringify({format:'internai-workspace',exportedAt:new Date().toISOString(),workspace:state},null,2),'internai-workspace-backup.json','application/json')}
 window.addEventListener('error',()=>recordDiagnostic('script_error'));
 window.addEventListener('unhandledrejection',()=>recordDiagnostic('unhandled_rejection'));
 
