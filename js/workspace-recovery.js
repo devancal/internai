@@ -30,7 +30,8 @@ function decodeWorkspaceBackup(text){
  const statuses=['Interested','Preparing','Ready','Applied','Interview','Offer','Rejected'];
  next.apps=w.apps.map(v=>{
   if(!object(v))fail();const out={id:id(v.id)};
-  for(const key of ['company','title','date','createdAt','notes','draft','resumeNotes','tailoredResume','answers','submittedAt','interviewAt','offerAt','rejectedAt'])out[key]=str(v[key]);
+  for(const key of ['company','title','date','createdAt','notes','draft','resumeNotes','tailoredResume','answers','submittedAt','interviewAt','offerAt','rejectedAt','interviewNotes'])out[key]=str(v[key]);
+  for(const key of ['deadlineDate','followUpDate','interviewDate','lastFollowUpDate']){out[key]=str(v[key]);if(!validTrackingDate(out[key]))fail()}
   out.editedMaterials=strings(v.editedMaterials);if(out.editedMaterials.some(key=>!['draft','tailoredResume','answers'].includes(key)))fail();
   out.status=str(v.status,'Interested');if(!statuses.includes(out.status))fail();
   if(v.jobId)out.jobId=id(v.jobId);
