@@ -4,7 +4,7 @@ function requirementSentences(text=''){
  return String(text).replace(/<[^>]+>/g,' ').replace(/\b(?:B\.S\.|M\.S\.|B\.A\.|Ph\.D\.|U\.S\.C\.|U\.S\.)/g,x=>x.replace(/\./g,''))
   .split(/\n+|(?<=[.!?;])\s+/).map(x=>x.replace(/\s+/g,' ').trim()).filter(x=>x.length>=4&&x.length<=800);
 }
-function requirementKind(text=''){const t=text.toLowerCase();if(/preferred|bonus|nice to have|ideally|plus\b/.test(t))return'preferred';if(/degree|major|pursuing|enrolled|student|graduat|gpa|citizen|authorization|authorized|sponsor|visa|eligible/.test(t))return'eligibility';if(/required|must|proficien|experience with|knowledge of/.test(t))return'required';if(/responsibil|you will|you'll|duties|what you.*do|work on|support|design|develop|build|test|analy|manufactur/.test(t))return'responsibility';return'required'}
+function requirementKind(text=''){const t=text.toLowerCase();if(/preferred|bonus|nice to have|ideally|plus\b/.test(t))return'preferred';if(/degree|major|pursuing|enrolled|student|graduat|gpa|security clearance|abet|accredited|citizen|authorization|authorized|sponsor|visa|eligible/.test(t))return'eligibility';if(/required|must|proficien|experience with|knowledge of/.test(t))return'required';if(/responsibil|you will|you'll|duties|what you.*do|work on|support|design|develop|build|test|analy|manufactur/.test(t))return'responsibility';return'required'}
 function requirementWeight(kind){return kind==='required'?1:kind==='eligibility'?.9:kind==='responsibility'?.72:.55}
 function requirementLabel(text='',i=0){const clean=text.replace(/^[-–—•\s]+/,'').trim();return clean.length<=150?clean:`${clean.slice(0,147).trim()}…`||`Requirement ${i+1}`}
 function buildJobRequirementGraph(j){
@@ -18,7 +18,7 @@ function buildJobRequirementGraph(j){
   if(/^(benefits|compensation|about us|equal opportunity|sms terms of service)/i.test(heading)){section='ignore';continue}
   if(/equal opportunity employers?|tobacco-free|drug.{0,10}testing|third.party recruiters|colorado residents|artificial intelligence:/i.test(sentence)){section='ignore';continue}if(section==='ignore'||!/[a-zA-Z]/.test(sentence))continue;
   if(sentence===j.title||sentence.toLowerCase().startsWith((j.company||'__no_company__').toLowerCase()+' ')||/^(our |we |many past interns|if you have already graduated)/i.test(sentence))continue;
-  if(!section&&!/required|requirement|qualif|preferred|degree|major|pursuing|enrolled|student|graduat|gpa|citizen|authorized|authorization|sponsor|visa|experience|proficien|knowledge|familiar|ability|responsibil|you will|you'll|design|develop|build|test|analy|manufactur|cad|solidworks|python|matlab|excel/i.test(sentence))continue;
+  if(!section&&!/required|requirement|qualif|preferred|degree|major|pursuing|enrolled|student|graduat|gpa|security clearance|abet|accredited|citizen|authorized|authorization|sponsor|visa|experience|proficien|knowledge|familiar|ability|responsibil|you will|you'll|design|develop|build|test|analy|manufactur|cad|solidworks|python|matlab|excel/i.test(sentence))continue;
   const kind=requirementKind(sentence);if(/(?:base|hourly|annual) (?:pay|salary)|\$\s*\d/.test(sentence.toLowerCase()))continue;add(sentence,section==='preferred'?'preferred':kind==='eligibility'?kind:section||kind);
  }
  for(const skill of j.skills||[]){if(!skill||skill==='Engineering'||nodes.some(n=>n.skills.some(s=>s.toLowerCase()===skill.toLowerCase())))continue;add(`Employer listing identifies ${skill}`,'required','Employer listing metadata',[skill])}

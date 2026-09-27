@@ -79,3 +79,9 @@ Invite 3–5 consenting testers yourself; no invitations are sent by the applica
 ## Database sync verification
 
 The SQL source is in `supabase/migrations/*_workspace_atomic_sync.sql`. Deploy the function and timestamp triggers before the corresponding client; failed RPC calls preserve local edits. `tests/workspace-sync.sql` verifies successful saves, advancing versions, stale rejection, owner binding, and anonymous permissions in a transaction that rolls back every synthetic row. It requires an administrative SQL connection and must not be appended to a production migration. Existing RLS remains enabled; the save function uses security invoker and derives ownership from `auth.uid()`.
+
+## Personal discovery controls
+
+Discovery defaults to the saved profile and Summer 2027. Home metro and home state filters use published city/state text and a small regional alias list, not mileage or commute estimates. Unknown or conflicting states are not called local. Explicit location searches override the area selector; Anywhere broadens results without editing the profile. Close-to-home scoring uses the same regional relationship as filtering. Profile preference allows remote listings, whose restrictions still require employer review.
+
+Optional controls include unlisted seasons and restrict results to usable application links. A link is not proof that a job is open. Wrong explicit years remain excluded for selected seasons, while Any term deliberately includes other years. Shortlists and dashboard recommendations exclude samples and known unusable application links; existing saved roles and applications are preserved. Cards surface unsupported requirements and eligibility questions alongside strengths.
