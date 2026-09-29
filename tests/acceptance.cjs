@@ -42,3 +42,5 @@ test('live acceptance: migrated graph retains full bullets and specific project 
  assert.equal(graph.claims[1].text,'Validated motion to evaluate mechanical behavior and component relationships.');
 });
 test('GPA with robotics minor remains education and preserves decimal in title',()=>{const r=runtime();assert.equal(r.run(`evidenceTypeFor("GPA: 3.86 | Minors: Mathematics, Robotics")`),'Education');assert.equal(r.run(`evidenceTitleFor("GPA: 3.86 | Minors: Mathematics, Robotics")`),'GPA: 3.86')});
+
+test('tracking and preparation use the same role-specific cover generator',()=>{const r=runtime();r.run("state.profile.resumeText='ENGINEERING PROJECTS\\nFixture Design Project\\nPersonal Project | SolidWorks\\n• Designed a SolidWorks fixture for assembly testing.';state.profile.careerGraph=null;testJob=seedJobs[0];testApp={company:testJob.company,title:testJob.title,jobId:testJob.id,jobSnapshot:testJob}");assert.equal(r.run('generateDraft(testApp)'),r.run('coverDraft(testApp,testJob)'))});
