@@ -1,5 +1,6 @@
 // One bounded refresh shares both feeds and preserves honest source diagnostics.
 let internFeedPromise=null;
+const internFeedCache=new Map();
 let feedStatus={checkedAt:null,sources:[],loading:false};
 function feedStatusText(){
  if(feedStatus.loading)return 'Refreshing employer feeds…';
@@ -7,7 +8,8 @@ function feedStatusText(){
  const failures=feedStatus.sources.filter(s=>!s.ok||s.partial);
  const count=jobsData.filter(j=>j.live).length;
  const time=new Date(feedStatus.checkedAt).toLocaleString();
- return `${count} employer listings. Last refresh: ${time}.${failures.length?` Some sources are unavailable: ${failures.map(s=>s.label).join(', ')}. Results may be incomplete.`:''}${jobsSource==='fallback'?' Showing illustrative samples because no live listings were returned.':''}`;
+ const stale=feedStatus.sources.filter(s=>s.stale).map(s=>`${s.label} (last successful fetch: ${new Date(s.updatedAt).toLocaleString()})`);
+ return `${count} employer listings. Last refresh attempt: ${time}.${failures.length?` Some sources are unavailable: ${failures.map(s=>s.label).join(', ')}. Results may be incomplete.`:''}${stale.length?` Retaining older listings from ${stale.join(', ')}; availability has not been rechecked.`:''}${jobsSource==='fallback'?' Showing illustrative samples because no live listings were returned.':''}`;
 }
 function canonicalJobUrl(value){try{const u=new URL(value);u.hash='';for(const key of ['utm_source','utm_medium','utm_campaign','gh_src','source'])u.searchParams.delete(key);return u.href.replace(/\/$/,'')}catch{return ''}}
 loadLiveJobs=function(force=false){
@@ -23,8 +25,9 @@ loadLiveJobs=function(force=false){
     if(!response.ok)throw new Error('feed unavailable');
     const data=await response.json();if(!Array.isArray(data.jobs))throw new Error('invalid feed');
     const fetchedAt=Number.isFinite(Date.parse(data.updatedAt))?data.updatedAt:new Date().toISOString();
-    return {label,ok:true,partial:!!data.partial,updatedAt:fetchedAt,jobs:data.jobs.map(j=>({...j,fetchedAt}))};
-   }catch{return {label,ok:false,partial:false,jobs:[]}}finally{clearTimeout(timer)}
+    const result={label,ok:true,partial:!!data.partial,updatedAt:fetchedAt,jobs:data.jobs.map(j=>({...j,fetchedAt}))};
+    internFeedCache.set(path,result);return result;
+   }catch{const previous=internFeedCache.get(path);return {label,ok:false,partial:false,stale:!!previous?.jobs.length,updatedAt:previous?.updatedAt||null,jobs:previous?.jobs||[]}}finally{clearTimeout(timer)}
   }));
   const byUrl=new Map();for(const j of results.flatMap(r=>r.jobs)){const key=canonicalJobUrl(j.applyUrl)||j.id;if(!byUrl.has(key))byUrl.set(key,j)}
   const live=[...byUrl.values()];jobsSource=live.length?'live':'fallback';
