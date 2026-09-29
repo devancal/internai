@@ -11,12 +11,13 @@ function buildJobRequirementGraph(j){
  const sentences=requirementSentences(j.desc||''),nodes=[];let section=null;
  const add=(text,kind,source='Employer listing',skills=evidenceSkillHits(text))=>{if(nodes.some(n=>n.text===text))return;nodes.push({id:`jobreq-${nodes.length}`,kind,label:requirementLabel(text),text,skills,tokens:evidenceTokens(text),weight:requirementWeight(kind),source})};
  for(const sentence of sentences){
-  const heading=sentence.replace(/[:\s]+$/,'').toLowerCase();
-  if(/^(requirements|required qualifications|qualifications|minimum qualifications|basic qualifications|what you bring|what we're looking for)$/.test(heading)){section='required';continue}
+  const heading=sentence.replace(/^[-–—•·\s]+|[:\s]+$/g,'').toLowerCase();
+  if(/^(requirements|required qualifications|qualifications|minimum qualifications|basic qualifications|what you bring|what you'll bring|required education|required skills\/abilities|what we're looking for)$/.test(heading)){section='required';continue}
   if(/^(bonus|preferred qualifications|preferred|nice to have)$/.test(heading)){section='preferred';continue}
   if(/^(role|primary responsibilities|responsibilities|duties|what you'll do|what you will do)$/.test(heading)){section='responsibility';continue}
-  if(/^(benefits|compensation|about us|equal opportunity|sms terms of service)/i.test(heading)){section='ignore';continue}
+  if(/^(benefits|compensation|about us|about the team|why |bring your career|equal opportunity|sms terms of service)/i.test(heading)){section='ignore';continue}
   if(/equal opportunity employers?|tobacco-free|drug.{0,10}testing|third.party recruiters|colorado residents|artificial intelligence:/i.test(sentence)){section='ignore';continue}if(section==='ignore'||!/[a-zA-Z]/.test(sentence))continue;
+  if(/cookies?|privacy policy|consent manager|skip to main|employee login|candidate profile|^manufacturing & operations$|^student[s]? & graduates$|paid, mentored internship offers/i.test(sentence))continue;
   if(sentence===j.title||sentence.toLowerCase().startsWith((j.company||'__no_company__').toLowerCase()+' ')||/^(our |we |many past interns|if you have already graduated)/i.test(sentence))continue;
   if(!section&&!/required|requirement|qualif|preferred|degree|major|pursuing|enrolled|student|graduat|gpa|security clearance|abet|accredited|citizen|authorized|authorization|sponsor|visa|experience|proficien|knowledge|familiar|ability|responsibil|you will|you'll|design|develop|build|test|analy|manufactur|cad|solidworks|python|matlab|excel/i.test(sentence))continue;
   const kind=requirementKind(sentence);if(/(?:base|hourly|annual) (?:pay|salary)|\$\s*\d/.test(sentence.toLowerCase()))continue;add(sentence,section==='preferred'?'preferred':kind==='eligibility'?kind:section||kind);
@@ -24,10 +25,10 @@ function buildJobRequirementGraph(j){
  for(const skill of j.skills||[]){if(!skill||skill==='Engineering'||nodes.some(n=>n.skills.some(s=>s.toLowerCase()===skill.toLowerCase())))continue;add(`Employer listing identifies ${skill}`,'required','Employer listing metadata',[skill])}
  // Degree metadata lists alternatives, not a requirement to hold every listed major.
  const fields=(j.degreeFields||[]).filter(Boolean);
- if(fields.length&&!nodes.some(n=>n.kind==='eligibility'&&fields.some(d=>n.text.toLowerCase().includes(d.toLowerCase()))))add(`Accepted degree fields: ${fields.join(' or ')}`,'eligibility','Employer listing metadata',[]);
- return{version:2,jobId:j.id,nodes:nodes.slice(0,40)};
+ if(fields.length&&!nodes.some(n=>/degree|major|disciplines|fields of study/i.test(n.text)&&n.kind!=='responsibility'))add(`Accepted degree fields: ${fields.join(' or ')}`,'eligibility','Employer listing metadata',[]);
+ return{version:3,jobId:j.id,nodes:nodes.slice(0,40)};
 }
-function jobRequirementGraph(j){if(!j)return{version:1,nodes:[]};const fingerprint=`${j.title||''}|${j.desc||''}|${(j.skills||[]).join(',')}|${(j.degreeFields||[]).join(',')}`;if(j.__requirementGraph?.version!==2||j.__requirementFingerprint!==fingerprint){j.__requirementGraph=buildJobRequirementGraph(j);j.__requirementFingerprint=fingerprint}return j.__requirementGraph}
+function jobRequirementGraph(j){if(!j)return{version:1,nodes:[]};const fingerprint=`${j.title||''}|${j.desc||''}|${(j.skills||[]).join(',')}|${(j.degreeFields||[]).join(',')}`;if(j.__requirementGraph?.version!==3||j.__requirementFingerprint!==fingerprint){j.__requirementGraph=buildJobRequirementGraph(j);j.__requirementFingerprint=fingerprint}return j.__requirementGraph}
 function claimSupportForRequirement(req,j){const graph=ensureCareerGraph(),profileSkills=new Set((state.profile.skills||[]).map(x=>x.toLowerCase())),direct=req.skills.filter(s=>profileSkills.has(s.toLowerCase())),candidates=graph.claims.map(claim=>{const parent=graph.nodes.find(n=>n.id===claim.parentId),skillHits=(claim.skills||[]).filter(s=>req.skills.some(r=>r.toLowerCase()===s.toLowerCase())||req.text.toLowerCase().includes(s.toLowerCase())),tokenHits=(claim.tokens||[]).filter(t=>req.tokens.includes(t)),score=skillHits.length*6+Math.min(tokenHits.length,8);return{claim,parent,score,skillHits,tokenHits}}).filter(x=>x.score>=2).sort((a,b)=>b.score-a.score);return{supported:direct.length>0||candidates.length>0,direct,candidates:candidates.slice(0,3),score:direct.length?12:(candidates[0]?.score||0)}}
 function structuredRequirementMap(j){return jobRequirementGraph(j).nodes.map(req=>{const support=claimSupportForRequirement(req,j),best=support.candidates[0];return{req:req.label,kind:req.kind,weight:req.weight,supported:support.supported,support:support.direct.length?`Profile skill: ${support.direct.join(', ')}`:best?.parent?`${best.parent.type}: ${best.parent.title}`:'Not documented in current evidence',evidenceIds:support.candidates.map(x=>x.parent?.id).filter(Boolean),claimIds:support.candidates.map(x=>x.claim.id),supportScore:support.score}})}
 requirementEvidenceMap=function(j){return structuredRequirementMap(j)};
