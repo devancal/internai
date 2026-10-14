@@ -12,6 +12,8 @@ function buildJobRequirementGraph(j){
  const add=(text,kind,source='Employer listing',skills=evidenceSkillHits(text))=>{if(nodes.some(n=>n.text===text))return;nodes.push({id:`jobreq-${nodes.length}`,kind,label:requirementLabel(text),text,skills,tokens:evidenceTokens(text),weight:requirementWeight(kind),source})};
  for(const sentence of sentences){
   const heading=sentence.replace(/^[-–—•·\s]+|[:\s]+$/g,'').toLowerCase();
+  // Eligibility sections can follow company/EEO boilerplate in employer postings.
+  if(/^(sponsorship(?:\s*(?:&|and)\s*work authorization)?|work authorization|eligibility)$/.test(heading)){section='eligibility';continue}
   if(/^(requirements|required qualifications|qualifications|minimum qualifications|basic qualifications|what you bring|what you'll bring|required education|required skills\/abilities|what we're looking for)$/.test(heading)){section='required';continue}
   if(/^(bonus|preferred qualifications|preferred|nice to have)$/.test(heading)){section='preferred';continue}
   if(/^(role|primary responsibilities|responsibilities|duties|what you'll do|what you will do)$/.test(heading)){section='responsibility';continue}
