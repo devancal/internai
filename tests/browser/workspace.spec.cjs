@@ -7,6 +7,17 @@ test.beforeEach(async({page})=>{
 });
 async function downloadedText(download){const stream=await download.createReadStream(),chunks=[];for await(const chunk of stream)chunks.push(chunk);return Buffer.concat(chunks).toString('utf8')}
 async function openWorkspace(page){await page.goto('/');await page.locator('.hero-buttons').getByRole('button',{name:'Build your profile →',exact:true}).click();await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible()}
+
+test('match page exposes employer gaps and unknown authorization before preparation',async({page},testInfo)=>{
+ await page.route('**/api/**',route=>route.fulfill({json:{jobs:[{...job,company:'Example Engineering',desc:'Qualifications\nRequired: AutoCAD and Word.\nPotential Experiences\nLearn process safety\nAbout Example Engineering\nA distinguished engineering firm.\nSponsorship & Work Authorization\nCandidates must be authorized to work without sponsorship.'}],updatedAt:new Date().toISOString()}}));
+ await openWorkspace(page);await page.locator('[data-page="jobs"]').click();
+ await page.getByRole('button',{name:'See why it matches →',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Employer requirements and eligibility'})).toBeVisible();
+ await expect(page.getByText('Required: AutoCAD and Word.',{exact:true})).toBeVisible();
+ await expect(page.getByText('Needs review · Work authorization is not stored in the current profile',{exact:true})).toBeVisible();
+ await expect(page.locator('.review-box').filter({hasText:'Learn process safety'})).toHaveCount(0);
+ await page.screenshot({path:testInfo.outputPath('requirements-verified.png'),fullPage:true});
+});
 test('landing and workspace fit the viewport without horizontal overflow',async({page})=>{await page.goto('/');await expect(page.locator('#how .feature')).toHaveCount(3);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.locator('.hero-buttons').getByRole('button',{name:'Build your profile →',exact:true}).click();await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)});
 test('import, edit, download, track, reload keeps user materials',async({page})=>{
  await openWorkspace(page);await page.locator('[data-page="jobs"]').click();await expect(page.getByText(/Last refresh attempt:/)).toBeVisible();await page.getByRole('button',{name:'Add a job you found',exact:true}).click();

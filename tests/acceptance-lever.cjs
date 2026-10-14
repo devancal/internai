@@ -18,3 +18,12 @@ test('match details expose the same missing skills and eligibility as preparatio
  const html=r.ctx.document.getElementById('page').innerHTML;
  assert.ok(html.includes('Employer requirements and eligibility'));assert.ok(html.includes('AutoCAD'));assert.ok(html.includes('Gap'));assert.ok(html.includes('Needs review'));assert.ok(!html.includes('No additional detected skills.'));
 });
+
+test('learning opportunities and company policies do not become candidate qualifications',()=>{
+ const r=runtime();const result=r.run("withCalibrationProfile(calibrationProfile({skills:['Excel'],resumeText:''}),()=>{const j=calibrationJob({company:'Example Engineering',skills:[],degreeFields:[],desc:'Qualifications\\nProficient in Microsoft Office Excel and WordSeeks feedback to improve performance\\nAutoCAD or other drafting software desired\\nExposure to Plant 3D a plus\\nPotential Experiences\\nLearn process safety\\nAbout Example Engineering\\nA distinguished engineering firm.\\nSponsorship & Work Authorization\\nCandidates must be authorized to work without sponsorship.\\nThird‑Party Agency Notice\\nResumes are not eligible for placement fees.'});return {map:structuredRequirementMap(j),nodes:jobRequirementGraph(j).nodes}})");
+ assert.ok(result.map.some(x=>x.req.includes('Word')&&!x.supported));
+ assert.ok(result.nodes.some(x=>x.text.includes('AutoCAD')&&x.kind==='preferred'));
+ assert.ok(result.nodes.some(x=>x.text.includes('Plant 3D')&&x.kind==='preferred'));
+ assert.ok(result.map.some(x=>x.req.includes('without sponsorship')&&!x.known));
+ assert.ok(!result.nodes.some(x=>/Learn process|distinguished|placement fees|Potential Experiences|About Example/.test(x.text)));
+});
